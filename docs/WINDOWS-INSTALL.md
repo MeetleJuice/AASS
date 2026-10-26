@@ -103,7 +103,19 @@ sanitized stage/status messages rather than environment dumps or private files.
 Gemini model discovery and judging use the native generateContent API. Old
 Google OpenAI-compatible URLs are migrated in memory; you do not need to rewrite
 your private file. A cloud failure log now includes the exact model and API route.
-If a listed model still returns404, select another listed text model and retry
+If a listed model still returns 404, select another listed text model and retry
 Test connections. The successful worker check is reused; packages stay installed.
 Only explicit tests/runs make generation requests, and account restrictions or
 quota still need to be resolved with Google when reported.
+
+## Update an already-installed 1.2.0 to 1.2.1
+
+Close AASS. Download and extract the complete 1.2.1 release. Open its inner folder
+containing Start-AASS.bat, then copy that folder's contents into your existing
+application folder and choose Replace files. Copy the contents rather than
+nesting the new folder inside the old one. The release contains no .venv, .aass
+or private .env files, so those existing local files remain in place.
+Double-click Start-AASS.bat and Test connections. This source-only patch uses the
+same locked dependencies; preparing Docker, Ollama and all packages again is
+unnecessary. If you instead choose a fresh folder, use Install-AASS.bat there and
+select your existing private credentials file when prompted.

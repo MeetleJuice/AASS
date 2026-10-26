@@ -59,7 +59,7 @@ not bypasses, repeated package installation or a misleading success indicator.
 
 ## Completion evidence
 
-Implemented in source9124d52 and published as AASS1.2.0. Local integration tests,
+Implemented in source 9124d52 and published as AASS 1.2.0. Local integration tests,
 actual Tk credential/catalog/404-retry flow, fresh extracted package installation,
 Windows regressions/native GUI/browser installation and Defender ZIP/payload
 scans passed. Downloaded public assets pass the matching evidence validator and

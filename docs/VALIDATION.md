@@ -1,5 +1,18 @@
 # Gemini native API correction 1.2.1
 
+Published as [v1.2.1-624a13b](https://github.com/MeetleJuice/AASS/releases/tag/v1.2.1-624a13b).
+[Workflow 40375108469](https://github.com/MeetleJuice/AASS/actions/runs/40375108469)
+passed Linux, Windows, security and publication. Windows regressions, actual BAT,
+clean runtime/Tk/browser checks and Defender archive/installed-payload scans all
+passed. Defender reports zero detections. The downloaded public ZIP and evidence
+passed the matching evidence validator and reproduced the local clean build:
+`832b50e72a74a1ee638a7ab32b7feb006012e0dd6a572568951c96fde44aa0a8`.
+
+An existing extracted 1.2.0 runtime was also updated by overlaying only source
+files from the 1.2.1 ZIP. Manifest verification and native Gemini imports passed
+through the already-installed runtime, with its private file-selection state
+preserved. This patch changes no locked dependencies and needs no new system tool.
+
 A user completed all local installation, package, Docker sandbox, browser and
 Ollama checks, then received404 from the cloud judge after Gemini model discovery.
 The log lacked the selected model ID, so it does not establish the exact account
@@ -11,7 +24,7 @@ that previously pointed at the official /v1beta/openai endpoint. Request IDs,
 headers, schema, output limits, legacy migration, blocked/incomplete responses,
 failed calls and safe error context are covered without real account credentials.
 A discovery-to-connection integration test exercises both actual adapters through
-one mock HTTP transport and the same model ID. Local suite:295 passed,2 Windows-only
+one mock HTTP transport and the same model ID. Local suite: 295 passed, 2 Windows-only
 skips. Bandit reports no medium/high finding. Real API entitlement and quota still
 require the user's explicit connection test; no live Gemini account success is
 claimed from mocked tests. Publication retains actual Windows and Defender gates.
