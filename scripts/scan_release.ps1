@@ -1,4 +1,4 @@
-param([Parameter(Mandatory=$true)][string]$Archive)
+param([Parameter(Mandatory=$true)][string]$Archive, [string]$PayloadPath)
 $ErrorActionPreference = 'Stop'
 $Archive = (Resolve-Path -LiteralPath $Archive).Path
 $beforeHash = (Get-FileHash -LiteralPath $Archive -Algorithm SHA256).Hash.ToLowerInvariant()
@@ -21,8 +21,14 @@ if ($signature.Status -ne 'Valid' -or $signature.SignerCertificate.Subject -notm
     throw 'Cannot verify the Microsoft scanner signature.'
 }
 $started = Get-Date
-$payload = Join-Path $env:RUNNER_TEMP ('aass-scan-' + [guid]::NewGuid())
-Expand-Archive -LiteralPath $Archive -DestinationPath $payload
+if ($PayloadPath) {
+    $payload = (Resolve-Path -LiteralPath $PayloadPath).Path
+    $releaseRoot = $payload
+} else {
+    $payload = Join-Path $env:RUNNER_TEMP ('aass-scan-' + [guid]::NewGuid())
+    Expand-Archive -LiteralPath $Archive -DestinationPath $payload
+    $releaseRoot = (Get-ChildItem -LiteralPath $payload -Directory | Select-Object -First 1).FullName
+}
 & $scanner -Scan -ScanType 3 -File $Archive
 $archiveExit = $LASTEXITCODE
 & $scanner -Scan -ScanType 3 -File $payload
@@ -35,8 +41,7 @@ if ($archiveExit -ne 0 -or $payloadExit -ne 0 -or $matches.Count -gt 0) {
 }
 $afterHash = (Get-FileHash -LiteralPath $Archive -Algorithm SHA256).Hash.ToLowerInvariant()
 if ($beforeHash -ne $afterHash) { throw 'Archive changed during scanning.' }
-$release = Get-ChildItem -LiteralPath $payload -Directory | Select-Object -First 1
-python (Join-Path $release.FullName 'verify_release.py') --root $release.FullName
+python (Join-Path $releaseRoot 'verify_release.py') --root $releaseRoot
 if ($LASTEXITCODE -ne 0) { throw 'Payload integrity failed after Defender scan.' }
 [ordered]@{
     passed = $true
@@ -51,5 +56,7 @@ if ($LASTEXITCODE -ne 0) { throw 'Payload integrity failed after Defender scan.'
     payload_exit = $payloadExit
     detections = $matches.Count
     microsoft_scanner_signature = 'Valid'
+    installed_environment_scanned = (Test-Path (Join-Path $releaseRoot '.venv/Scripts/python.exe'))
+    browser_bundle_scanned = (Test-Path (Join-Path $releaseRoot '.aass/browsers'))
 } | ConvertTo-Json | Set-Content -LiteralPath (Join-Path (Split-Path $Archive) 'defender-scan.json') -Encoding utf8
 Write-Host 'Microsoft Defender scans and post-scan integrity checks passed.'

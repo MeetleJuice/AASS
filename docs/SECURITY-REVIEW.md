@@ -77,3 +77,23 @@ is not an antivirus verdict. Existing third-party installations, a compromised
 Windows user account, malicious custom MCP server and host-kernel/browser exploits
 remain outside the container guarantee. Keep application source and operator
 configuration trusted; never use the AASS runtime as its own engineering target.
+
+## Platform and process follow-up
+The first strict Windows lock run exposed missing Windows-only requirements:
+pywin32 (MCP), colorama (pytest) and tzdata (PostgreSQL). Exact reviewed versions
+and wheel hashes were added with platform markers. Lock maintenance now validates
+closure/specifiers/extras for Windows, Linux and macOS; the auditor neutralises
+markers for advisory lookup so a Linux audit also checks Windows package versions.
+All 37 runtime, 47 development and 33 audit-tool pins were checked without known
+advisories. These counts include platform-specific packages, not all installed on
+every platform.
+
+Browser control and readiness now use a dedicated isolated stdio helper with
+provider credentials stripped before the SDK/renderer starts. Docker/Git children
+also receive filtered environments. A real browser regression verifies this
+boundary and cleanup. New unversioned projects map safely even without Git.
+
+The Windows release job additionally installs the exact clean end-user environment
+and browser before scanning. Its Defender report records whether installed runtime
+and browser bundles were included. Publication still waits for actual successful
+scan and integrity evidence; this statement describes the gate, not a presumed result.

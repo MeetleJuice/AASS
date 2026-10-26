@@ -131,3 +131,13 @@ Windows CI/Defender/publication are separate observable checks. They are configu
 to run on the reviewed commit; until their results are observed, no new candidate
 is described as Defender-cleared. A cloud account's live authentication/credit is
 not validated by CI fixtures and remains a destination-account check.
+
+### Cross-platform lock and browser follow-up
+After adding the Windows-only locked wheels, cross-platform closure validation,
+all-platform advisory lookup and the isolated browser helper, the full local
+Linux integration run passed **113 tests, 0 failed, 0 skipped** (23.95 seconds).
+All-platform runtime/development/audit-tool advisory lookups returned no known
+vulnerabilities, and the Bandit medium/high gate had no findings/errors. The first
+two Windows CI attempts correctly blocked publication at the incomplete dependency
+lock; neither is an antivirus clearance. The corrected remote run is the next
+required piece of evidence.

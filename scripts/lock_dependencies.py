@@ -5,6 +5,10 @@ import json
 import urllib.request
 from pathlib import Path
 
+from packaging.markers import default_environment
+from packaging.requirements import Requirement
+from packaging.utils import canonicalize_name
+
 ROOT = Path(__file__).resolve().parents[1]
 # Reviewed runtime closure. Test/postgres/security tools are excluded from end-user installation.
 RUNTIME = {
@@ -28,6 +32,7 @@ RUNTIME = {
     "packaging": "26.3",
     "playwright": "1.64.1",
     "pycparser": "3.12",
+    "pywin32": "312",
     "pydantic": "2.14.1",
     "pydantic-core": "2.50.1",
     "pydantic-settings": "2.16.1",
@@ -54,7 +59,60 @@ DEV = {
     "iniconfig": "2.3.1",
     "pluggy": "1.7.0",
     "pygments": "2.21.0",
+    "colorama": "0.4.6",
+    "tzdata": "2026.5",
 }
+
+MARKERS = {
+    "pywin32": 'sys_platform == "win32" and python_version < "3.14"',
+    "colorama": 'sys_platform == "win32"',
+    "tzdata": 'sys_platform == "win32"',
+}
+METADATA = {}
+
+
+def validate_closure(pins, metadata):
+    """Fail on missing or incompatible conditional dependencies for every supported OS."""
+    normalized = {canonicalize_name(name): version for name, version in pins.items()}
+    for platform, system, os_name, machine in [
+        ("win32", "Windows", "nt", "AMD64"),
+        ("linux", "Linux", "posix", "x86_64"),
+        ("darwin", "Darwin", "posix", "arm64"),
+    ]:
+        environment = default_environment() | {
+            "sys_platform": platform,
+            "platform_system": system,
+            "os_name": os_name,
+            "platform_machine": machine,
+            "python_version": "3.12",
+            "python_full_version": "3.12.10",
+        }
+        extras = {name: set() for name in pins}
+        for _ in range(5):
+            changed = False
+            for name in pins:
+                if name in MARKERS and not Requirement("package; " + MARKERS[name]).marker.evaluate(
+                    environment
+                ):
+                    continue
+                for spec in metadata[name]:
+                    requirement = Requirement(spec)
+                    if requirement.marker and not any(
+                        requirement.marker.evaluate(environment | {"extra": extra})
+                        for extra in {""} | extras[name]
+                    ):
+                        continue
+                    key = canonicalize_name(requirement.name)
+                    if key not in normalized or normalized[key] not in requirement.specifier:
+                        raise ValueError(
+                            f"{system}: {name} needs unpinned/incompatible {requirement}"
+                        )
+                    target = next(n for n in pins if canonicalize_name(n) == key)
+                    before = len(extras[target])
+                    extras[target].update(requirement.extras)
+                    changed |= before != len(extras[target])
+            if not changed:
+                break
 
 
 def requirement(item):
@@ -64,6 +122,7 @@ def requirement(item):
         f"https://pypi.org/pypi/{name}/{version}/json", timeout=20
     ) as response:
         metadata = json.load(response)
+    METADATA[name] = metadata["info"].get("requires_dist") or []
     hashes = sorted(
         {
             file["digests"]["sha256"]
@@ -73,7 +132,8 @@ def requirement(item):
     )
     if not hashes:
         raise RuntimeError(f"No verified wheels published for {name}=={version}")
-    return name, f"{name}=={version} \\\n" + " \\\n".join(
+    marker = "; " + MARKERS[name] if name in MARKERS else ""
+    return name, f"{name}=={version}{marker} \\\n" + " \\\n".join(
         "    --hash=sha256:" + digest for digest in hashes
     ) + "\n"
 
@@ -81,6 +141,8 @@ def requirement(item):
 def main():
     with concurrent.futures.ThreadPoolExecutor(max_workers=8) as pool:
         lines = dict(pool.map(requirement, sorted((RUNTIME | DEV).items())))
+    validate_closure(RUNTIME, METADATA)
+    validate_closure(RUNTIME | DEV, METADATA)
     header = "# Exact versions and SHA-256 wheel hashes from official PyPI. No sdists.\n"
     (ROOT / "requirements.lock").write_text(
         header + "\n".join(lines[name] for name in sorted(RUNTIME))
@@ -88,7 +150,8 @@ def main():
     (ROOT / "requirements-dev.lock").write_text(
         header + "\n".join(lines[name] for name in sorted(RUNTIME | DEV))
     )
-    postgres = RUNTIME | {name: DEV[name] for name in ("psycopg", "psycopg-binary")}
+    postgres = RUNTIME | {name: DEV[name] for name in ("psycopg", "psycopg-binary", "tzdata")}
+    validate_closure(postgres, METADATA)
     (ROOT / "requirements-postgres.lock").write_text(
         header + "\n".join(lines[name] for name in sorted(postgres))
     )

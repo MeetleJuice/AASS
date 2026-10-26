@@ -11,7 +11,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from circuit_breaker import SafetyStop
-from settings import is_link
+from settings import is_link, subprocess_environment
 
 COMMAND_BLACKLIST = frozenset(
     {
@@ -152,7 +152,9 @@ class ContainerSandbox:
                 self.image,
                 *command,
             ]
-            proc = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            proc = subprocess.Popen(
+                args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=subprocess_environment()
+            )
             exceeded = threading.Event()
             buffers = [bytearray(), bytearray()]
 
@@ -180,7 +182,12 @@ class ContainerSandbox:
                 proc.kill()
                 proc.wait()
             finally:
-                subprocess.run(["docker", "rm", "-f", name], capture_output=True, timeout=15)
+                subprocess.run(
+                    ["docker", "rm", "-f", name],
+                    capture_output=True,
+                    timeout=15,
+                    env=subprocess_environment(),
+                )
                 for reader in readers:
                     reader.join(timeout=5)
             return ExecutionResult(

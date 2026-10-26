@@ -75,18 +75,17 @@ def doctor(config_error=False):
             else "Configuration presence only; use the connection check for authenticated model requests."
         ),
     }
+    browser = None
     try:
-        from playwright.sync_api import sync_playwright
+        from tools.browser_session import BrowserSession
 
-        from tools.computer_use import chromium_executable
-
-        with sync_playwright() as p:
-            with p.chromium.launch(headless=True, executable_path=chromium_executable()) as browser:
-                page = browser.new_page()
-                page.set_content("<title>AASS readiness</title>")
-                checks["chromium"] = {"ready": page.title() == "AASS readiness"}
+        browser = BrowserSession([])
+        checks["chromium"] = {"ready": browser.ask({"operation": "probe"}) is True}
     except Exception as error:
         checks["chromium"] = {"ready": False, "error_type": type(error).__name__}
+    finally:
+        if browser:
+            browser.close()
     return {"ready": all(c["ready"] for c in checks.values()), "checks": checks}
 
 

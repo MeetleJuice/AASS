@@ -238,3 +238,22 @@ def test_embedding_only_model_list_selects_a_generation_workhorse(monkeypatch):
 
     monkeypatch.delenv("AASS_WORKER_MODEL", raising=False)
     assert select_worker(["qwen3-embedding:0.6b"]) == "qwen3.5:9b"
+
+
+def test_lock_closure_catches_windows_only_missing_dependencies():
+    from scripts.lock_dependencies import validate_closure
+
+    with pytest.raises(ValueError, match="Windows"):
+        validate_closure({"parent": "1.0"}, {"parent": ['missing>=1; sys_platform == "win32"']})
+    validate_closure(
+        {"parent": "1.0", "child": "2.0"},
+        {"parent": ['child>=2; sys_platform == "win32"'], "child": []},
+    )
+
+
+def test_auditor_does_not_skip_windows_marked_pins(tmp_path):
+    from scripts.audit_dependencies import neutral_pins
+
+    path = tmp_path / "requirements.lock"
+    path.write_text('pywin32==312; sys_platform == "win32" \\\n --hash=sha256:fixture\n')
+    assert neutral_pins(path) == ["pywin32==312"]

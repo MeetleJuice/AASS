@@ -81,3 +81,44 @@ def test_real_browser_navigation_click_screenshot_and_origin_denial(tmp_path):
         server.shutdown()
         server.server_close()
         thread.join()
+
+
+@pytest.mark.skipif(os.environ.get("AASS_INTEGRATION") != "1", reason="set AASS_INTEGRATION=1")
+def test_browser_helper_keeps_provider_keys_out_of_sdk_process(tmp_path, monkeypatch):
+    from tools.browser_session import BrowserSession
+
+    monkeypatch.setenv("AASS_JUDGE_API_KEY", "private-fixture-not-for-browser")
+
+    class Handler(http.server.BaseHTTPRequestHandler):
+        def do_GET(self):
+            self.send_response(200)
+            self.end_headers()
+            self.wfile.write(
+                b"<title>Isolated browser</title><button onclick=\"this.textContent='clicked'\">go</button>"
+            )
+
+        def log_message(self, *args):
+            pass
+
+    server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    browser = None
+    try:
+        url = f"http://127.0.0.1:{server.server_port}"
+        browser = BrowserSession([url])
+        assert browser.navigate(url)["title"] == "Isolated browser"
+        browser.click("button")
+        assert "clicked" in browser.text()
+        image = tmp_path / "helper.png"
+        browser.screenshot(image)
+        assert image.read_bytes().startswith(b"\x89PNG")
+        with pytest.raises(RuntimeError, match="PermissionError"):
+            browser.navigate("https://unlisted.example")
+    finally:
+        if browser:
+            browser.close()
+            assert browser.process.poll() == 0
+        server.shutdown()
+        server.server_close()
+        thread.join()

@@ -5,7 +5,7 @@ import os
 import subprocess
 from pathlib import Path
 
-from settings import is_link
+from settings import is_link, subprocess_environment
 
 
 class RepoMapper:
@@ -18,6 +18,7 @@ class RepoMapper:
                 ["git", "ls-files", "-z"],
                 cwd=self.root,
                 capture_output=True,
+                env=subprocess_environment(),
                 check=True,
                 timeout=10,
             )

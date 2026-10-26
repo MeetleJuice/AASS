@@ -5,7 +5,8 @@ import base64
 import os
 from pathlib import Path
 
-from tools.computer_use import ComputerUse
+from settings import is_link
+from tools.browser_session import BrowserSession
 from tools.mcp_gateway import MCPGateway
 
 
@@ -26,7 +27,7 @@ class OperatorTools:
         if not self.browser_origins:
             raise PermissionError("Browser access was not configured by the operator")
         if self.browser is None:
-            self.browser = ComputerUse(self.browser_origins).__enter__()
+            self.browser = BrowserSession(self.browser_origins)
         operation = action.get("operation")
         if operation == "navigate":
             return self.browser.navigate(action["url"])
@@ -35,6 +36,8 @@ class OperatorTools:
             return "Click completed"
         if operation == "screenshot":
             path = Path(artifact_dir) / "browser.png"
+            if is_link(path):
+                raise PermissionError("Screenshot destination cannot be a link")
             self.browser.screenshot(path)
             if path.stat().st_size > 256 * 1024:
                 raise ValueError("Browser screenshot exceeds image input limit")
@@ -44,7 +47,7 @@ class OperatorTools:
                 "note": "Screenshot saved and attached to the next local worker request.",
             }
         if operation == "text":
-            return self.browser.page.locator("body").inner_text()[:8192]
+            return self.browser.text()
         raise ValueError("Unknown browser operation")
 
     def mcp_action(self, name, arguments):
@@ -78,5 +81,5 @@ class OperatorTools:
 
     def close(self):
         if self.browser:
-            self.browser.__exit__(None, None, None)
+            self.browser.close()
             self.browser = None

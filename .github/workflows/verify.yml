@@ -19,10 +19,10 @@ jobs:
     runs-on: ${{ matrix.os }}
     timeout-minutes: 25
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           persist-credentials: false
-      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
           python-version: '3.12'
           cache: pip
@@ -67,11 +67,31 @@ jobs:
       - name: Build deterministic source release
         if: runner.os == 'Windows'
         run: python scripts/package.py
+      - name: Clean Windows runtime install and real Chromium check
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $clean = Join-Path $env:RUNNER_TEMP 'aass-clean-runtime'
+          Expand-Archive -LiteralPath dist/AASS-1.1.0.zip -DestinationPath $clean
+          $root = Join-Path $clean 'AASS-1.1.0'
+          $env:PLAYWRIGHT_BROWSERS_PATH = Join-Path $root '.aass/browsers'
+          python (Join-Path $root 'launch_aass.py') --install-only
+          if ($LASTEXITCODE -ne 0) { throw 'Clean end-user runtime installation failed' }
+          $runtime = Join-Path $root '.venv/Scripts/python.exe'
+          & $runtime -m pip check
+          if ($LASTEXITCODE -ne 0) { throw 'Clean runtime dependencies are inconsistent' }
+          $probe = "import os, mcp, httpx, filelock, win32api; os.environ['AASS_JUDGE_API_KEY']='fixture-not-real'; from orchestration_canvas import doctor; result=doctor(); assert result['checks']['chromium']['ready'], result; print('Clean Windows runtime, isolated browser helper and Chromium verified')"
+          & $runtime -c $probe
+          if ($LASTEXITCODE -ne 0) { throw 'Clean Windows runtime/browser verification failed' }
+          python (Join-Path $root 'verify_release.py') --root $root
+          if ($LASTEXITCODE -ne 0) { throw 'Release sources changed during installation' }
+          Add-Content -Path $env:GITHUB_ENV -Value "AASS_SCAN_PAYLOAD=$root"
+          Add-Content -Path $env:GITHUB_ENV -Value "PLAYWRIGHT_BROWSERS_PATH=$env:PLAYWRIGHT_BROWSERS_PATH"
       - name: Scan exact archive and extracted payload with Microsoft Defender
         if: runner.os == 'Windows'
         shell: powershell
-        run: ./scripts/scan_release.ps1 -Archive dist/AASS-1.1.0.zip
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        run: ./scripts/scan_release.ps1 -Archive dist/AASS-1.1.0.zip -PayloadPath "$env:AASS_SCAN_PAYLOAD"
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         if: runner.os == 'Windows'
         with:
           name: windows-scanned-source
@@ -83,21 +103,21 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           persist-credentials: false
-      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
           python-version: '3.12'
       - run: |
           python -m pip install --require-hashes --only-binary=:all: -r requirements-audit.lock
           mkdir -p dist
-          python -m pip_audit -r requirements.lock --disable-pip --no-deps -f json -o dist/dependency-audit.json
-          python -m pip_audit -r requirements-dev.lock --disable-pip --no-deps
-          python -m pip_audit -r requirements-audit.lock --disable-pip --no-deps
-          python -m pip_audit -r requirements.lock --disable-pip --no-deps -f cyclonedx-json -o dist/SBOM.json
+          python scripts/audit_dependencies.py requirements.lock --output dist/dependency-audit.json
+          python scripts/audit_dependencies.py requirements-dev.lock --output dist/dev-dependency-audit.json
+          python scripts/audit_dependencies.py requirements-audit.lock --output dist/tool-dependency-audit.json
+          python scripts/audit_dependencies.py requirements.lock --format cyclonedx-json --output dist/SBOM.json
           python -m bandit -r . -x ./.venv,./tests,./.aass,./build,./dist -ll -f json -o dist/source-security.json
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
           name: security-evidence
           path: dist/*.json
@@ -110,22 +130,22 @@ jobs:
       id-token: write
       attestations: write
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           persist-credentials: false
-      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
         with:
           pattern: '*-source'
           path: dist
           merge-multiple: true
-      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
         with:
           name: security-evidence
           path: dist
       - name: Verify exact artifact, manifest and matching scan before publication
         run: |
           python scripts/check_release_evidence.py dist
-      - uses: actions/attest-build-provenance@96b4a1ef7235a096b17240c259729fdd70c83d45 # v2
+      - uses: actions/attest-build-provenance@977bb373ede98d70efdf65b84cb5f73e068dcc2a # v3
         with:
           subject-path: dist/AASS-1.1.0.zip
       - name: Publish verified source and evidence together
