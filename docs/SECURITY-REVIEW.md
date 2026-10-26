@@ -97,3 +97,13 @@ The Windows release job additionally installs the exact clean end-user environme
 and browser before scanning. Its Defender report records whether installed runtime
 and browser bundles were included. Publication still waits for actual successful
 scan and integrity evidence; this statement describes the gate, not a presumed result.
+
+## Observed release outcome
+GitHub run [40349139773](https://github.com/MeetleJuice/AASS/actions/runs/40349139773)
+passed the real Windows clean-install/browser/Defender gates and published
+[v1.1.0-5c0182d](https://github.com/MeetleJuice/AASS/releases/tag/v1.1.0-5c0182d).
+Its matching Defender report records zero detections for the release and installed
+runtime/browser bundle. A separate public download/check and reproducible local
+build matched the exact Windows artifact bytes. Provenance record 59975537 is
+available on GitHub. Exact results and verification limits are in VALIDATION.md;
+this does not retroactively classify the original unknown warning.

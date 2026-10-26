@@ -79,3 +79,13 @@ and browser boundaries, provider settings menu, and independent install/cloud
 states. Local full integration and fresh extracted-runtime checks passed. Phase 5
 is implemented as a fail-closed Windows/Linux/security/Defender/provenance release
 workflow; actual remote results must be observed before a download is recommended.
+
+## Completion evidence
+All five phases were executed. The corrected platform locks were validated and
+all-platform advisory lookups passed. Local Linux integrations passed 113 tests.
+The actual remote Windows clean-install, browser, Defender and publication gates
+then passed in run 40349139773. The published v1.1.0-5c0182d archive was downloaded,
+matched against its reports and reproduced byte-for-byte locally. See VALIDATION.md
+for exact source/hash, scan versions and public evidence links. The original
+warning remains unclassified; Authenticode signing and personal API account
+verification are not represented as completed.

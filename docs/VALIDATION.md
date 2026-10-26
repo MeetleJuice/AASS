@@ -141,3 +141,37 @@ vulnerabilities, and the Bandit medium/high gate had no findings/errors. The fir
 two Windows CI attempts correctly blocked publication at the incomplete dependency
 lock; neither is an antivirus clearance. The corrected remote run is the next
 required piece of evidence.
+
+## Observed published 1.1.0 release — final evidence
+
+Reviewed source: `5c0182d834c895eac2cc518fc39d8b9afd5b3630`.
+
+- [GitHub run 40349139773](https://github.com/MeetleJuice/AASS/actions/runs/40349139773)
+  completed successfully, including Linux integration/security jobs, Windows
+  regression/batch checks, clean Windows end-user installation, real Chromium
+  through the credential-stripped helper, Defender scan and publication.
+- [Published release](https://github.com/MeetleJuice/AASS/releases/tag/v1.1.0-5c0182d)
+  includes the exact archive, checksum, Defender report, dependency audit, source
+  security report and SBOM.
+- [Defender report](https://github.com/MeetleJuice/AASS/releases/download/v1.1.0-5c0182d/defender-scan.json):
+  `passed=true`, archive/payload exit codes both 0, **0 detections**, installed
+  environment and browser bundle both scanned. Engine `1.1.26090.9`, signatures
+  `1.461.140.0`; the Microsoft scanner signature was valid.
+- Archive SHA-256:
+  `08cc3af6be488f2f86b83d910fc6f7dac3418086f64fd650671e0195f8c8e9a4`.
+  The downloaded public GitHub asset matched its checksum and scan report; the
+  local evidence checker accepted all matching reports and manifest metadata.
+- Rebuilding the clean tagged source locally on Linux produced **identical ZIP
+  bytes** to the Windows-built published archive. The 43 runtime-file manifest
+  identifies the clean source revision above.
+- [GitHub provenance](https://github.com/MeetleJuice/AASS/attestations/59975537)
+  and its public Sigstore bundle are available. The installed local gh 2.46 has
+  no attestation subcommand, so independent local cryptographic verification with
+  gh was not claimed; modern gh can verify the public attestation.
+
+These are actual observed results, not presumed from workflow configuration.
+They do not classify the old unknown warning as a false positive or guarantee
+acceptance by every antivirus/reputation system. Source remains unsigned for
+Windows Authenticode. Destination account/model availability, live generation
+and cloud API credits must still be checked through the application menu; CI
+contains no personal model credentials.
