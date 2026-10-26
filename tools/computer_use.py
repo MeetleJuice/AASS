@@ -32,6 +32,7 @@ class ComputerUse:
             )
             self.context = self.browser.new_context(accept_downloads=False, service_workers="block")
             self.context.route("**/*", self._route)
+            self.context.route_web_socket("**/*", lambda socket: socket.close())
             self.page = self.context.new_page()
             self.page.set_default_timeout(10_000)
             return self

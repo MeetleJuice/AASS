@@ -24,7 +24,7 @@ from sandboxes.container import DEFAULT_SANDBOX_IMAGE
 from worker_agent import WorkerAgent
 
 
-def doctor():
+def doctor(config_error=False):
     checks = {}
     models = verify_ollama()
     worker_model = select_worker(models)
@@ -54,9 +54,26 @@ def doctor():
         checks["sandbox_image"] = {"ready": result.returncode == 0, "image": image}
     except (OSError, subprocess.TimeoutExpired):
         checks["sandbox_image"] = {"ready": False, "image": image}
+    try:
+        from settings import judge_url
+
+        judge_url(
+            os.environ.get("AASS_JUDGE_BASE_URL", "https://api.openai.com/v1"),
+            os.environ.get("AASS_JUDGE_PROVIDER", "openai"),
+        )
+    except ValueError:
+        config_error = True
     checks["judge_configuration"] = {
-        "ready": bool(os.environ.get("AASS_JUDGE_API_KEY") and os.environ.get("AASS_JUDGE_MODEL")),
-        "note": "Presence only; run verify-live for an authenticated model request.",
+        "ready": bool(
+            os.environ.get("AASS_JUDGE_API_KEY")
+            and os.environ.get("AASS_JUDGE_MODEL")
+            and not config_error
+        ),
+        "note": (
+            "Provider settings need attention. Choose the correct provider in the Start menu."
+            if config_error
+            else "Configuration presence only; use the connection check for authenticated model requests."
+        ),
     }
     try:
         from playwright.sync_api import sync_playwright
@@ -136,15 +153,22 @@ def main(argv=None):
     status = commands.add_parser("status")
     status.add_argument("--workspace", type=Path, required=True)
     args = parser.parse_args(argv)
-    if args.credentials_file:
-        load_credentials(args.credentials_file)
-    if not args.no_desktop_discovery:
-        discover_api_keys()
-    configure_provider()
-    stage = args.command
+    stage = "configuration"
     try:
+        if args.credentials_file:
+            load_credentials(args.credentials_file)
+        if not args.no_desktop_discovery:
+            discover_api_keys(configure=False)
+        config_error = False
+        try:
+            configure_provider()
+        except ValueError:
+            if args.command != "doctor":
+                raise
+            config_error = True
+        stage = args.command
         if args.command == "doctor":
-            report = doctor()
+            report = doctor(config_error)
             print(json.dumps(report, indent=2))
             return 0 if report["ready"] else 2
         if args.command == "init":

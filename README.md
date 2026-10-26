@@ -1,96 +1,82 @@
-# AASS
-Autonomous Agent System Stack
+# AASS — Autonomous Agent System Stack
 
-# Autonomous Agent System Stack (AASS) vs. CRADLE 🚀
+A bounded, headless Python engineering agent with a local Ollama worker, isolated
+Docker tests, persistent failure history, and an independent cloud review gate.
+Preferred local model: **qwen3.5:9b**. Current maintenance version: **1.1.0**.
 
-Welcome to the architectural codebase for **AASS 1.0 (Autonomous Agent System Stack)**, an asset blueprint built to establish an independent, self-correcting development software runtime engine on local consumer hardware.
+## Windows installation
 
-## 🎯 The Ultimate Goal
-To transcend standard, conversational AI models that experience memory limitations and loop stagnation, replacing them with a headless, un-babysat developer workspace. The stack utilizes local compute (`qwen3.5:9b` via Ollama) to process repeatable, zero-cost engineering tasks, and maps cloud keys via automated file intercept hooks to activate high-level cognitive supervision when barriers are hit.
+Use the ZIP from **[GitHub Releases](https://github.com/MeetleJuice/AASS/releases)**,
+not an old diagnostic patch. An approved release includes its exact Microsoft
+Defender scan report, SHA-256 checksum, dependency audit, source scan, SBOM and
+GitHub build attestation. A release is published only after those checks succeed.
 
----
+1. Extract the complete release ZIP.
+2. Double-click **Install-AASS.bat**. Existing Python, Docker, Ollama and models are
+   reused. Local setup has visible stages, deadlines and a log.
+3. The menu opens after local setup. Choose **cloud provider**, then **check model
+   connections**. A provider/account error does not require reinstalling software.
+4. Use **Start-AASS.bat** for later launches; choose a separate project and task.
 
-## 🏛️ System Core Architectures & Jargon
+Your machine needs Python 3.12, Linux-container Docker Desktop and Ollama. Setup
+starts installed services. New system-wide prerequisites are installed only with
+an explicit `--install-prerequisites` option. Windows feature changes/reboots and
+API account billing still require the owner of the machine/account.
 
-### 🧠 1. Cognitive & Reasoning Layers
-*   **Co-Regulation Design Agentic Loop (CRDAL):** The dual-loop framework based on Carnegie Mellon University research ("Supervising Ralph Wiggum"). A high-level supervisor agent monitors execution trajectories and injects overrides into a lower worker agent.
-*   **Ralph Wiggum Loop (RWL):** A single-loop automated baseline. Spuns up an execution model freshly each turn to interact directly with system environments before discarding it to block context bloat.
-*   **Design Fixation (Tunnel Vision):** The pathological loop state where an AI repeats localized, syntax-level modifications on a broken concept rather than stepping back to change strategies.
+Installation does not make paid cloud requests by default. A final task still
+requires nonzero-count tests after the last write and an independent judge's
+approval. No missing credential or failed request can become an approved task.
 
-### 🔌 2. Integration & Infrastructure Layers
-*   **Model Context Protocol (MCP):** An open standard protocol creating isolated, plug-and-play microservices for agents to query databases and file system arrays safely.
-*   **Trajectory Summary (`trajectory.json`):** A dense, vectorized structural JSON timeline logging changes made and precise error signatures to manage memory without chat context bloat.
-*   **Stall-Detection Intercept:** A deterministic circuit breaker that automatically monitors tracking logs and stops execution if an agent hits a fixation rut.
+## Security and credentials
 
-### 🛠️ 3. Environment & Verification Layers
-*   **Computer Use (OSWorld Vision API):** Direct multi-modal vision-language automation allowing the engine to capture screenshots of a hidden browser, map coordinates, and click selectors to verify web interfaces.
-*   **Asymmetric Evaluation (LLM-as-a-Judge):** An automated gatekeeper that passes code patches through an independent, premium model review process to analyze security, syntax, and style before delivery.
-*   **Ephemeral Sandboxes:** Completely isolated, disposable local micro-VMs or container wrappers ensuring script crashes or hazardous code blocks are perfectly contained.
+A user reported an antivirus warning for the previous patch ZIP. That artifact
+was withdrawn. The detection name is unknown; it has not been declared a false
+positive. **Do not disable antivirus, add exclusions or restore a quarantined
+patch.** Hashes and provenance establish integrity/origin, not universal safety.
+Unsigned source is not an Authenticode-signed Windows application.
 
----
+Existing environment bindings take precedence. Automatic discovery reads Desktop
+`.env` and bounded credential folders, not arbitrary unrelated Desktop projects.
+Recognized cloud keys are `OPENAI_API_KEY`, `GEMINI_API_KEY`/`GOOGLE_API_KEY`, and
+`ANTHROPIC_API_KEY`, or the explicit `AASS_JUDGE_API_KEY`/`AASS_JUDGE_MODEL` pair.
+The menu stores only your provider/model preference; keys stay in your private
+file or environment. Official API endpoints are validated before keys are sent.
+A trusted custom HTTPS provider requires an explicit environment allowlist.
 
-## 📊 How it Outperforms Commercial Apps (Ours vs. OpenAI Codex App)
+The cloud judge receives the task, changed code and test evidence. Only use it
+for source you permit that provider to receive. Local browser screenshots remain
+local model inputs. Keep secrets outside engineering target projects.
 
-| Feature Axis | OpenAI Codex (The App) | "Ours" (AASS Runtime) |
-| :--- | :--- | :--- |
-| **Interface Strategy** | Front-end app windows, visual note cards, and visual chat inputs. | **Headless Engine:** Streams raw command lines and dense data files. |
-| **Context Longevity** | **Auto-Compaction:** Truncates older chats causing immediate instruction rot. | **State-Space Compaction:** Tracks history permanently via dense indices. |
-| **Loop Resilience** | Freezes and demands manual user prompts when an error hits a wall. | **CRDAL Core Regulation:** Automatically shifts strategy via supervisor overrides. |
-| **Compute Economy** | Tied to cloud pricing structures and rolling 5-hour quota windows. | **Hybrid Routing:** Free local Qwen 9B processing scaled by cloud APIs. |
+## The five layers
 
----
+| Layer | Implemented responsibilities |
+| --- | --- |
+| Infrastructure & safety | Hard token/iteration ceilings; command policy; disposable networkless Docker tests with resource/output limits |
+| Connectivity | Official MCP sessions and tool allowlists; read-only PostgreSQL tools; Git/import mapping |
+| Execution | Fresh-context schema-validated Ollama actions; scoped atomic file edits; origin-scoped Playwright tools |
+| Quality | Atomic trajectory, repeated-failure intercept, bounded strategy pivots and strict independent verdicts |
+| Executive canvas | Single-writer supervisor, private state, native CLI and local project/task menu |
 
-## 🚀 Execution & Self-Evolution Pipeline
+Containers share the host kernel; they are not micro-VMs. Browser and trusted MCP
+server processes run on the host. The first runtime supports bounded Python test
+workflows, not unrestricted OS automation. Generated tests and LLM review do not
+prove arbitrary software correct or production safe.
 
-This system is configured to self-compile autonomously across a 5-layer checklist via the master prompt harness:
-1. **Layer 1: Infrastructure & Safety** (Token Budget Caps, Sandboxing boundaries)
-2. **Layer 2: Connectivity** (MCP Postgres and Git repo graph mappers)
-3. **Layer 3: Worker Engine** (Local Ollama hooks, browser automation scripts)
-4. **Layer 4: Quality Assurance** (LLM-as-a-Judge reviewer, trajectory logs)
-5. **Layer 5: Executive Canvas** (CRDAL core supervisor orchestration graphs)
-
-
-
----
-
-## AASS 1.0 runtime implementation
-
-The five-layer headless Python runtime is implemented in this repository. The
-architecture above describes the goal; actual verified capabilities and external
-service requirements are documented separately below.
-
-**Windows:** extract the current ZIP and double-click **Install-AASS.bat**.
-It finds or installs prerequisites, starts Docker/Ollama, installs dependencies,
-and runs sandbox, browser and live-model checks. After success, the task menu
-opens automatically. Use **Start-AASS.bat** for later launches. See
-[Windows instructions](docs/WINDOWS-INSTALL.md).
-
-**Linux/macOS:** install Python 3.12+, Docker and Ollama, then run
-`bash launch-aass.sh`. The launcher installs locked Python
-dependencies and detects Desktop `.env` files, recognized cloud keys, and your
-actual local Ollama models. It prefers `qwen3.5:9b` when installed. It never
-writes credential values into the architecture JSON or repository.
+## Development and evidence
 
 ```sh
-python launch_aass.py doctor
-python launch_aass.py verify-live
-python launch_aass.py run --workspace /absolute/path/to/project \
-  --task "Implement the requested feature and verify it with unit tests"
+bash scripts/setup.sh
+AASS_INTEGRATION=1 AASS_POSTGRES_INTEGRATION=1 bash scripts/verify.sh
 ```
 
-Use a separate target project, so generated changes cannot rewrite the executing
-AASS runtime. Worker tests execute in bounded, networkless Docker containers.
-The independent cloud judge must approve before a task can report success.
-Unavailable model services and missing credentials fail readiness explicitly.
-This is a bounded Python engineering runtime, not an unrestricted OS agent or a
-proof that arbitrary generated programs are production safe.
+Runtime wheels and build tools have exact versions and SHA-256 hashes. Developer,
+PostgreSQL test and audit tools have separate locks; end-user setup does not
+install them. TLS and artifact verification remain enabled.
 
-- [Implementation plan](docs/PLAN.md)
-- [Local setup, credentials, MCP, browser and deployment](docs/OPERATIONS.md)
+- [Windows instructions](docs/WINDOWS-INSTALL.md)
+- [Operations](docs/OPERATIONS.md)
 - [Architecture and trust boundaries](docs/ARCHITECTURE.md)
+- [Remediation plan](docs/REMEDIATION-PLAN.md)
+- [Security review and research](docs/SECURITY-REVIEW.md)
 - [Validation evidence](docs/VALIDATION.md)
-
-The original supplied initializer was corrected to preserve telemetry, report
-actual Ollama availability, and keep secret values out of generated specifications.
-Browser automation uses Playwright with optional screenshot input to the local
-vision worker; it does not bundle an OSWorld service.
+- [Release notes](docs/RELEASE-NOTES.md)

@@ -5,6 +5,7 @@ import json
 import httpx
 
 from circuit_breaker import MAX_CALL_TOKENS
+from settings import ollama_url
 from tools.http_client import post_json
 
 ACTION_SCHEMA = {
@@ -33,7 +34,7 @@ ACTION_SCHEMA = {
 
 class WorkerAgent:
     def __init__(self, host="http://127.0.0.1:11434", model="qwen3.5:9b"):
-        self.host, self.model = host.rstrip("/"), model
+        self.host, self.model = ollama_url(host), model
 
     def step(self, task, context, strategy, budget):
         context = dict(context)

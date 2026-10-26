@@ -1,31 +1,30 @@
-AASS FOR WINDOWS
-================
+AASS 1.1.0 — WINDOWS
+===================
 
-1. Extract the entire ZIP. Do not run the BAT file from inside the ZIP viewer.
-2. Double-click Install-AASS.bat.
-3. Leave the window open. Setup shows progress and writes a log in .aass.
-4. After SETUP COMPLETE, the project/task menu opens automatically.
-   For later launches, double-click Start-AASS.bat.
+Use the full release ZIP from GitHub Releases, with the scan report and checksum.
+Do not use the withdrawn diagnostic patch or restore anything from quarantine.
 
-Your installed Docker Desktop, Ollama and local models are reused. The installer
-starts Docker and Ollama if necessary. Missing prerequisites can be installed via
-winget; Windows may display an administrator permission prompt. If Windows needs
-WSL/virtualization changes or a restart, setup explains the next action. It does
-not force a reboot or silently change Windows features.
+1. Extract all release files. Open the extracted folder.
+2. Double-click Install-AASS.bat. Leave the progress window open.
+3. After local setup, the menu opens. Choose your cloud provider if needed.
+4. Choose Check model connections when ready to make real (potentially paid) API calls.
+5. Later, double-click Start-AASS.bat and choose your project/task.
 
-Desktop and OneDrive Desktop .env files are searched automatically. Recognized
-cloud keys: OPENAI_API_KEY, GEMINI_API_KEY or ANTHROPIC_API_KEY. Existing environment
-bindings take precedence. No keys are included in this download. If no key is
-found, installation finishes with NEEDS ATTENTION and explains the required name.
-Do not send secret values in chat. Do not store real keys inside this folder.
+Your existing Python 3.12, Docker Desktop, Ollama and models are reused. Missing
+system prerequisites are reported; automatic winget installation requires the
+explicit --install-prerequisites option. Windows feature changes/restarts and
+API account access/credits need the machine/account owner.
 
-Setup checks real sandbox execution, browser readiness and model connections.
-The final cloud verification uses your provider account and may incur a charge.
-A green setup completion requires those live checks to pass.
+Desktop .env and bounded credential folders are recognized. Key values are not
+printed or written into the release. Select the provider whose API key you intend
+to use; keys can stay in your existing private file. An API quota/auth error means
+fixing that provider/account, not reinstalling Python/Docker or the application.
 
-If setup is interrupted, double-click Install-AASS.bat again. Already installed
-packages and downloaded models are reused. Keep the last error lines if you need
-help; never share credentials. Detailed instructions: docs/OPERATIONS.md.
+The installer verifies release file hashes and local sandbox/browser checks.
+A checksum is not antivirus clearance. Consult the separate Defender report for
+the exact archive. Source is unsigned; no Windows signing certificate is bundled.
+Do not disable antivirus or add exclusions for AASS.
 
-Windows batch launchers need a real Windows destination check; the automated
-installer logic is tested in Linux with simulated Windows service responses.
+Instructions: docs/WINDOWS-INSTALL.md
+Review: docs/SECURITY-REVIEW.md
+Local logs/status: .aass (inside the application folder; do not share credentials).

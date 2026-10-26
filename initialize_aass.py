@@ -3,10 +3,11 @@
 import argparse
 import json
 import os
-import re
 import urllib.error
 import urllib.request
 from pathlib import Path
+
+from settings import CREDENTIAL_SETTINGS, is_link, ollama_url, provider_preferences
 
 BUILD_ORDER = [
     (1, "Infrastructure & Safety", ["sandboxes/container.py", "circuit_breaker.py"]),
@@ -21,7 +22,7 @@ def load_credentials(path):
     """Import simple KEY=value assignments into this process without evaluating code."""
     count = 0
     path = Path(path)
-    if path.is_symlink() or not path.is_file() or path.stat().st_size > 64 * 1024:
+    if is_link(path) or not path.is_file() or path.stat().st_size > 64 * 1024:
         raise ValueError("Credentials file must be a regular file no larger than 64 KiB")
     for line in path.read_text(encoding="utf-8-sig").splitlines():
         line = line.strip()
@@ -29,10 +30,7 @@ def load_credentials(path):
             continue
         key, value = line.split("=", 1)
         key = key.removeprefix("export ").strip()
-        if not re.fullmatch(
-            r"(?:AASS_[A-Z0-9_]+|OLLAMA_HOST|OPENAI_API_KEY|GEMINI_API_KEY|GOOGLE_API_KEY|ANTHROPIC_API_KEY)",
-            key,
-        ):
+        if key not in CREDENTIAL_SETTINGS:
             continue
         value = value.strip().strip("\"'")
         if value:
@@ -49,67 +47,97 @@ PROVIDER_DEFAULTS = (
 
 
 def configure_provider():
-    """Map known provider bindings without copying secrets to files or printing values."""
-    if os.environ.get("AASS_JUDGE_API_KEY"):
+    """Resolve one explicit provider without sending credentials to a different host."""
+    from urllib.parse import urlsplit
+
+    preferences = provider_preferences()
+    selected = os.environ.get("AASS_JUDGE_SERVICE") or preferences.get("service", "auto")
+    providers = {
+        "openai": ("OPENAI_API_KEY", "https://api.openai.com/v1", "gpt-4.1", "openai"),
+        "gemini": (
+            "GEMINI_API_KEY",
+            "https://generativelanguage.googleapis.com/v1beta/openai",
+            "gemini-2.5-pro",
+            "openai",
+        ),
+        "anthropic": (
+            "ANTHROPIC_API_KEY",
+            "https://api.anthropic.com/v1",
+            "claude-sonnet-4-5",
+            "anthropic",
+        ),
+    }
+    if selected not in {"auto", *providers}:
+        raise ValueError("Unsupported provider selection")
+    if selected == "auto" and os.environ.get("AASS_JUDGE_API_KEY"):
         return
-    if os.environ.get("ANTHROPIC_API_KEY") and not any(
-        os.environ.get(item[0]) for item in PROVIDER_DEFAULTS
-    ):
-        os.environ["AASS_JUDGE_API_KEY"] = os.environ["ANTHROPIC_API_KEY"]
-        os.environ.setdefault("AASS_JUDGE_PROVIDER", "anthropic")
-        os.environ.setdefault("AASS_JUDGE_BASE_URL", "https://api.anthropic.com/v1")
-        os.environ.setdefault("AASS_JUDGE_MODEL", "claude-sonnet-4-5")
+    candidates = providers.items() if selected == "auto" else [(selected, providers[selected])]
+    for service, (name, endpoint, model, adapter) in candidates:
+        key = os.environ.get(name) or (
+            os.environ.get("GOOGLE_API_KEY") if service == "gemini" else None
+        )
+        if not key:
+            continue
+        base = os.environ.get("AASS_JUDGE_BASE_URL")
+        if selected == "auto" and base and urlsplit(base).hostname != urlsplit(endpoint).hostname:
+            raise ValueError(
+                "Cloud key and configured endpoint conflict. Select the intended provider in Start AASS settings"
+            )
+        os.environ["AASS_JUDGE_API_KEY"] = key
+        os.environ["AASS_JUDGE_BASE_URL"] = endpoint
+        os.environ["AASS_JUDGE_PROVIDER"] = adapter
+        os.environ["AASS_JUDGE_MODEL"] = (
+            preferences.get("model") or os.environ.get("AASS_JUDGE_MODEL") or model
+        )
         return
-    for name, endpoint, model in PROVIDER_DEFAULTS:
-        if os.environ.get(name):
-            os.environ["AASS_JUDGE_API_KEY"] = os.environ[name]
-            os.environ.setdefault("AASS_JUDGE_BASE_URL", endpoint)
-            os.environ.setdefault("AASS_JUDGE_MODEL", model)
-            return
+    if selected != "auto":
+        raise ValueError(
+            "The selected cloud provider has no matching key in the environment or private credentials file"
+        )
 
 
-def discover_api_keys():
-    """Bounded automatic Desktop discovery. Only recognized settings are imported."""
+def discover_api_keys(*, configure=True):
+    """Import predictable Desktop .env files and bounded credential folders only."""
     scanned = 0
     for desktop in (Path.home() / "Desktop", Path.home() / "OneDrive/Desktop"):
-        if not desktop.is_dir() or desktop.is_symlink():
+        if not desktop.is_dir() or is_link(desktop):
             continue
-        for directory, dirs, files in os.walk(desktop, followlinks=False):
-            base = Path(directory)
-            depth = len(base.relative_to(desktop).parts)
-            dirs[:] = (
-                sorted(d for d in dirs if not d.startswith(".") and not (base / d).is_symlink())
-                if depth < 3
-                else []
-            )
-            credentials_folder = any(
-                term in part.lower()
-                for part in base.relative_to(desktop).parts
-                for term in ("key", "api", "token", "credential")
-            )
-            for name in sorted(files):
-                file = base / name
-                if (
-                    file.is_symlink()
-                    or not file.is_file()
-                    or not (
-                        name == ".env"
-                        or name.endswith(".env")
-                        or (credentials_folder and name.endswith(".txt"))
-                    )
-                ):
-                    continue
-                scanned += 1
-                if scanned > 100:
-                    raise RuntimeError(
-                        "Desktop credentials scan exceeded 100 files; use --credentials-file"
-                    )
-                if file.stat().st_size <= 64 * 1024:
-                    try:
-                        load_credentials(file)
-                    except (OSError, UnicodeError):
-                        continue
-    configure_provider()
+        candidates = [desktop / ".env"]
+        for folder in sorted(desktop.iterdir()):
+            if (
+                is_link(folder)
+                or not folder.is_dir()
+                or not any(
+                    term in folder.name.lower() for term in ("key", "api", "token", "credential")
+                )
+            ):
+                continue
+            for directory, dirs, files in os.walk(folder, followlinks=False):
+                base = Path(directory)
+                dirs[:] = (
+                    [d for d in sorted(dirs) if not d.startswith(".") and not is_link(base / d)]
+                    if base == folder
+                    else []
+                )
+                candidates.extend(
+                    base / name
+                    for name in sorted(files)
+                    if name == ".env" or name.lower().endswith((".env", ".txt"))
+                )
+        for file in candidates:
+            if is_link(file) or not file.is_file():
+                continue
+            scanned += 1
+            if scanned > 100:
+                raise RuntimeError(
+                    "Credential folder scan exceeded 100 files; use --credentials-file"
+                )
+            try:
+                load_credentials(file)
+            except (OSError, UnicodeError, ValueError):
+                continue
+    if configure:
+        configure_provider()
     return sorted(k for k in os.environ if k.startswith("AASS_") and k.endswith("API_KEY"))
 
 
@@ -119,16 +147,17 @@ def select_worker(models):
         return explicit
     if "qwen3.5:9b" in models:
         return "qwen3.5:9b"
+    usable = [model for model in models if "embed" not in model.lower()]
     return next(
-        (model for model in models if "qwen" in model.lower()),
-        models[0] if models else "qwen3.5:9b",
+        (model for model in usable if "qwen" in model.lower()),
+        usable[0] if usable else "qwen3.5:9b",
     )
 
 
 def verify_ollama():
-    host = os.environ.get("OLLAMA_HOST", "http://127.0.0.1:11434").rstrip("/")
+    host = ollama_url()
     try:
-        with urllib.request.urlopen(host + "/api/tags", timeout=3) as response:
+        with urllib.request.urlopen(host + "/api/tags", timeout=3) as response:  # nosec B310 # scheme/host validated by ollama_url
             return [m["name"] for m in json.load(response).get("models", [])]
     except (OSError, ValueError, KeyError, urllib.error.URLError):
         return []
@@ -176,8 +205,7 @@ def main():
     if args.credentials_file:
         load_credentials(args.credentials_file)
     if not args.no_desktop_discovery:
-        discover_api_keys()
-    configure_provider()
+        discover_api_keys(configure=False)
     spec = bootstrap_workspace(args.root, verify_ollama())
     print(
         json.dumps(

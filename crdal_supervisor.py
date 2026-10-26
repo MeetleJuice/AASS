@@ -1,7 +1,9 @@
 """Bounded dual-loop supervisor. Runtime control code lives outside the target workspace."""
 
 import hashlib
+import os
 import re
+import tempfile
 import uuid
 from pathlib import Path
 
@@ -10,6 +12,7 @@ from filelock import FileLock, Timeout
 
 from circuit_breaker import CircuitBreaker, SafetyStop
 from sandboxes.container import ContainerSandbox
+from settings import is_link
 from stall_detector import check_fixation
 from telemetry import Trajectory, atomic_json
 from tools.operator_tools import OperatorTools
@@ -60,7 +63,7 @@ def workspace_path(root, name):
     current = root
     for part in relative.parts:
         current = current / part
-        if current.is_symlink():
+        if is_link(current):
             raise SafetyStop("Symlink access denied")
     resolved = (root / relative).resolve()
     if not resolved.is_relative_to(root):
@@ -79,11 +82,11 @@ class CRDALSupervisor:
         self.sandbox = sandbox or ContainerSandbox(self.root)
         self.budget = budget or CircuitBreaker()
         self.state_dir = self.root / ".aass"
-        if self.state_dir.is_symlink():
+        if is_link(self.state_dir):
             raise SafetyStop("Runtime state directory cannot be a symlink")
         self.state_dir.mkdir(exist_ok=True, mode=0o700)
         for name in ("trajectory.json", "canvas.json", "run.lock"):
-            if (self.state_dir / name).is_symlink():
+            if is_link(self.state_dir / name):
                 raise SafetyStop("Runtime state files cannot be symlinks")
         self.history = Trajectory(self.state_dir / "trajectory.json")
         self.canvas = self.state_dir / "canvas.json"
@@ -130,16 +133,34 @@ class CRDALSupervisor:
         if kind in ("read", "write"):
             path = workspace_path(self.root, action["path"])
             if kind == "read":
-                if path.stat().st_size > MAX_FILE_BYTES:
+                if not path.exists():
+                    raise FileNotFoundError("Workspace file not found")
+                if not path.is_file() or path.stat().st_nlink > 1:
+                    raise SafetyStop("Reads require a regular file with no hard links")
+                with path.open("rb") as handle:
+                    content = handle.read(MAX_FILE_BYTES + 1)
+                if len(content) > MAX_FILE_BYTES:
                     raise SafetyStop("File exceeds read limit")
-                return path.read_text()
+                return content.decode("utf-8")
             content = action["content"]
             if len(content.encode()) > MAX_FILE_BYTES:
                 raise SafetyStop("Write exceeds file limit")
             if len(self.changed) >= 100 and action["path"] not in self.changed:
                 raise SafetyStop("Changed-file count exceeds run limit")
             path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_text(content)
+            if path.exists() and not path.is_file():
+                raise SafetyStop("Writes require a regular file")
+            # Replacement breaks hard links and preserves the previous file on write failure.
+            descriptor, temporary = tempfile.mkstemp(prefix=".aass-write-", dir=path.parent)
+            try:
+                with os.fdopen(descriptor, "w", encoding="utf-8", newline="") as handle:
+                    handle.write(content)
+                    handle.flush()
+                    os.fsync(handle.fileno())
+                os.replace(temporary, path)
+            finally:
+                if os.path.exists(temporary):
+                    os.unlink(temporary)
             self.changed[action["path"]] = content
             self.tested = False
             return "File written. A new successful test is required."

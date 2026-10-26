@@ -19,6 +19,7 @@ from pathlib import Path
 
 from initialize_aass import discover_api_keys, select_worker
 from sandboxes.container import DEFAULT_SANDBOX_IMAGE
+from settings import ollama_url, subprocess_environment
 
 ROOT = Path(__file__).resolve().parent
 
@@ -64,7 +65,7 @@ def installation_lock(path):
 
 
 class Installer:
-    def __init__(self, root=ROOT, *, heartbeat=15):
+    def __init__(self, root=ROOT, *, heartbeat=15, install_prerequisites=False):
         self.root = Path(root)
         self.state = self.root / ".aass"
         self.state.mkdir(exist_ok=True)
@@ -72,7 +73,9 @@ class Installer:
             "setup-" + datetime.now().strftime("%Y%m%d-%H%M%S-%f") + ".log"
         )
         self.log = self.log_path.open("w", encoding="utf-8", buffering=1)
+        self.logged_bytes = 0
         self.heartbeat = heartbeat
+        self.install_prerequisites = install_prerequisites
         self.secret_values = [
             os.environ[name]
             for name in (
@@ -90,12 +93,21 @@ class Installer:
         for value in sorted(self.secret_values, key=len, reverse=True):
             text = text.replace(value, "[REDACTED]")
         text = re.sub(r"(https?://)[^\s/@]+:[^\s/@]+@", r"\1[REDACTED]@", text)
+        text = re.sub(
+            r"(?i)([?&](?:token|key|api_key|access_token|password)=)[^&\s]+", r"\1[REDACTED]", text
+        )
         return re.sub(r"\x1b\[[0-?]*[ -/]*[@-~]", "", text)
+
+    def write_log(self, text):
+        remaining = max(0, 10 * 1024 * 1024 - self.logged_bytes)
+        data = text.encode("utf-8")[:remaining]
+        self.log.write(data.decode("utf-8", errors="ignore"))
+        self.logged_bytes += len(data)
 
     def say(self, message):
         text = self.redact(str(message))
         print(text, flush=True)
-        self.log.write(text + "\n")
+        self.write_log(text + "\n")
 
     def status(self, state, **fields):
         report = {"status": state, "log": str(self.log_path), **fields}
@@ -120,7 +132,7 @@ class Installer:
             os.killpg(process.pid, signal.SIGKILL)
         process.wait(timeout=10)
 
-    def run(self, label, command, *, timeout=1200, check=True, visible=True):
+    def run(self, label, command, *, timeout=1200, check=True, visible=True, credentials=False):
         if visible:
             self.say("\n[AASS] " + label)
         started = time.monotonic()
@@ -133,6 +145,7 @@ class Installer:
             encoding="utf-8",
             errors="replace",
             start_new_session=os.name != "nt",
+            env=subprocess_environment(credentials=credentials),
         )
         lines = queue.Queue(maxsize=256)
 
@@ -164,7 +177,7 @@ class Installer:
                         if visible:
                             self.say(safe)
                         else:
-                            self.log.write(safe + "\n")
+                            self.write_log(safe + "\n")
                 except queue.Empty:
                     pass
                 if visible and now - last_tick >= self.heartbeat:
@@ -184,6 +197,10 @@ class Installer:
         return shutil.which(name) or next((str(p) for p in candidates if p.is_file()), None)
 
     def winget(self, package):
+        if not self.install_prerequisites:
+            raise SetupProblem(
+                f"{package} is missing. Install it from its official publisher, or explicitly rerun with --install-prerequisites. Existing applications are never reinstalled automatically."
+            )
         manager = shutil.which("winget")
         if not manager:
             raise SetupProblem(
@@ -236,6 +253,7 @@ class Installer:
                 [str(base / "Docker Desktop.exe")],
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
+                env=subprocess_environment(),
             )
             deadline = time.monotonic() + 180
             while kind is None and time.monotonic() < deadline:
@@ -263,14 +281,12 @@ class Installer:
             self.run("Downloading verified sandbox image", [binary, "pull", image], timeout=1800)
 
     def ollama(self):
-        host = os.environ.get("OLLAMA_HOST", "http://127.0.0.1:11434").rstrip("/")
-        if "://" not in host:
-            host = "http://" + host
+        host = ollama_url()
         os.environ["OLLAMA_HOST"] = host
 
         def tags():
             try:
-                with urllib.request.urlopen(host + "/api/tags", timeout=3) as response:
+                with urllib.request.urlopen(host + "/api/tags", timeout=3) as response:  # nosec B310 # validated by ollama_url
                     data = json.loads(response.read(262144))
                     return [item["name"] for item in data.get("models", [])]
             except (OSError, ValueError, KeyError):
@@ -294,7 +310,7 @@ class Installer:
                 [binary, "serve"],
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
-                creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0,
+                env=subprocess_environment(),
             )
             deadline = time.monotonic() + 45
             while models is None and time.monotonic() < deadline:
@@ -313,7 +329,7 @@ class Installer:
             self.run("Downloading worker model " + model, [binary, "pull", model], timeout=3600)
         self.say("[AASS] Selected local worker: " + model)
 
-    def install(self, *, skip_live=False):
+    def install(self, *, skip_live=True):
         self.status("installing")
         self.say("AASS automatic setup. Existing installations and models will be reused.")
         self.say("Setup log: " + str(self.log_path))
@@ -341,6 +357,7 @@ class Installer:
             timeout=90,
             check=False,
             visible=False,
+            credentials=True,
         )
         try:
             report = json.loads(text)
@@ -351,30 +368,52 @@ class Installer:
         checks = report.get("checks", {})
         for name, result in checks.items():
             self.say(f"  {name}: {'OK' if result.get('ready') else 'NEEDS ATTENTION'}")
+        local_checks = ("ollama_worker", "docker", "sandbox_image", "chromium")
+        if any(not checks.get(name, {}).get("ready") for name in local_checks):
+            self.status("installed_local_check_failed", checks=checks)
+            self.say(
+                "Local installation needs attention. Fix the named local check above; cloud configuration is separate."
+            )
+            return 2
         if code or not report.get("ready"):
             self.status("installed_needs_configuration", checks=checks)
             if not checks.get("judge_configuration", {}).get("ready"):
-                self.say("AASS is installed. No usable independent judge configuration was found.")
                 self.say(
-                    "Your Desktop .env needs OPENAI_API_KEY, GEMINI_API_KEY or ANTHROPIC_API_KEY; or AASS_JUDGE_API_KEY with AASS_JUDGE_MODEL. Keep values private. Rerun this installer after updating the file."
+                    "LOCAL INSTALLATION COMPLETE. No usable independent judge configuration was found."
+                )
+                self.say(
+                    "Your private .env needs OPENAI_API_KEY, GEMINI_API_KEY or ANTHROPIC_API_KEY; or AASS_JUDGE_API_KEY with AASS_JUDGE_MODEL. Keep values private. Use Start AASS > Choose cloud provider and Check model connections; no reinstall is required."
                 )
             else:
                 self.say(
                     "AASS is installed, but a readiness check failed. See the named check above and setup log."
                 )
-            return 2
+            return 0
         if skip_live:
             self.status("installed_live_unverified", checks=checks)
-            self.say("Installation checks passed. Live model verification was explicitly skipped.")
+            self.say(
+                "Installation checks passed. Live model verification is separate from installation."
+            )
+            self.say(
+                "Local prerequisites verified. Use Start-AASS.bat > Check model connections to verify generation and cloud access."
+            )
             return 0
         self.say(
             "Running real local worker and independent cloud review checks (provider charges may apply)."
         )
-        self.run(
+        live_code, live_text = self.run(
             "Verifying live model connections",
             [str(runtime), "-m", "orchestration_canvas", "verify-live"],
             timeout=300,
+            check=False,
+            credentials=True,
         )
+        if live_code:
+            self.status("installed_cloud_unverified", checks=checks)
+            self.say(
+                "AASS is installed. A model connection was rejected or unavailable; see the service/status above. Fix that account/service in the Start menu, then retry the connection check. Do not reinstall packages."
+            )
+            return 0
         self.status("ready", checks=checks)
         self.say("SETUP COMPLETE. Double-click Start-AASS.bat to choose a project and task.")
         return 0
@@ -404,18 +443,27 @@ def sandbox_smoke():
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--skip-live", action="store_true")
+    live = parser.add_mutually_exclusive_group()
+    live.add_argument(
+        "--verify-live", action="store_true", help="Also make paid model verification requests"
+    )
+    live.add_argument("--skip-live", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("--sandbox-smoke", action="store_true")
+    parser.add_argument(
+        "--install-prerequisites",
+        action="store_true",
+        help="Explicitly allow official winget prerequisite installations",
+    )
     args = parser.parse_args()
     if args.sandbox_smoke:
         return sandbox_smoke()
-    discover_api_keys()
-    installer = Installer()
+    discover_api_keys(configure=False)
+    installer = Installer(install_prerequisites=args.install_prerequisites)
     acquired = False
     try:
         with installation_lock(installer.state / "setup.lock"):
             acquired = True
-            return installer.install(skip_live=args.skip_live)
+            return installer.install(skip_live=not args.verify_live)
     except KeyboardInterrupt:
         installer.say("Setup cancelled. Double-click Install-AASS.bat to retry.")
         installer.status("cancelled")

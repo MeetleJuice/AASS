@@ -109,3 +109,25 @@ credentials, response messages and exception bodies are not echoed. The updated
 full Linux suite passed **85 tests, 0 failures, 0 skipped** (28.90 seconds).
 `Check-Connections.bat` retries only live connections; no package reinstall or
 model/image download is needed for that diagnostic.
+
+## 1.1.0 installation/security remediation
+The detailed plan is in REMEDIATION-PLAN.md and findings in SECURITY-REVIEW.md.
+Local evidence before remote release checks:
+
+- Full Linux run with Docker/browser/MCP/PostgreSQL gates enabled: **109 passed,
+  0 failed, 0 skipped** (20.06 seconds).
+- pip-audit: runtime, developer and audit-tool locks report no known vulnerabilities
+  after the filelock 4.2.1 update. The three previous advisories are recorded in the
+  security review; none is assumed to explain the original antivirus warning.
+- Bandit medium/high gate: no findings after documented narrow false-positive
+  review. Argument-array subprocess low-severity findings remain explicitly reviewed.
+- Clean extracted candidate: fresh hash-locked runtime-only installation succeeded.
+  Its 38 distributions include pip/project; pytest, ruff, pip-audit and psycopg
+  were absent, confirming end-user/developer separation.
+- Release manifest verifies after installation; repeated packaging is byte-for-byte
+  deterministic. Nested ZIPs, executable binaries, tests, state and venvs are absent.
+
+Windows CI/Defender/publication are separate observable checks. They are configured
+to run on the reviewed commit; until their results are observed, no new candidate
+is described as Defender-cleared. A cloud account's live authentication/credit is
+not validated by CI fixtures and remains a destination-account check.

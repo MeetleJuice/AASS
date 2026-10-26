@@ -1,13 +1,13 @@
 [build-system]
-requires = ["setuptools>=75"]
+requires = ["setuptools==84.2.1"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "aass-runtime"
-version = "1.0.0"
+version = "1.1.0"
 description = "Bounded dual-loop autonomous engineering runtime"
 requires-python = ">=3.12"
-dependencies = ["filelock>=3.20,<4", "httpx>=0.28,<1", "mcp>=1.26,<2", "playwright>=1.58,<2"]
+dependencies = ["filelock>=4.2.1,<5", "httpx>=0.28,<1", "mcp>=1.26,<2", "playwright>=1.58,<2"]
 
 [project.optional-dependencies]
 postgres = ["psycopg[binary]>=3.2,<4"]
@@ -17,7 +17,7 @@ dev = ["pytest>=8,<10", "pytest-asyncio>=1,<2", "ruff>=0.12,<1"]
 aass = "orchestration_canvas:main"
 
 [tool.setuptools]
-py-modules = ["initialize_aass", "circuit_breaker", "worker_agent", "stall_detector", "judge_evaluator", "orchestration_canvas", "crdal_supervisor", "telemetry"]
+py-modules = ["initialize_aass", "circuit_breaker", "worker_agent", "stall_detector", "judge_evaluator", "orchestration_canvas", "crdal_supervisor", "telemetry", "settings", "install_aass", "launch_aass", "local_app"]
 
 [tool.setuptools.packages.find]
 include = ["tools*", "sandboxes*"]

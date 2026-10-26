@@ -1,189 +1,127 @@
-# Native local operation
+# AASS operations
 
-## First launch
-AASS is a headless Python application. Install Python 3.12+, Docker Desktop
-(or Docker Engine on Linux), and Ollama on your own machine. Enable Linux
-containers in Docker Desktop. Start Docker; AASS never exposes the Docker socket
-to a task. Keep your working project in a separate directory from the AASS runtime.
+## Installation and updates
+Windows: use the full verified GitHub release and double-click Install-AASS.bat.
+Use Start-AASS.bat for later launches. [Windows instructions](WINDOWS-INSTALL.md)
+cover credentials, provider choice, recovery, status and security warnings.
 
-Windows: extract the ZIP and double-click **Install-AASS.bat**. Its coordinator
-starts services, installs dependencies, checks readiness and opens the task menu
-after success. Later use **Start-AASS.bat**. See [Windows setup](WINDOWS-INSTALL.md).
-For Linux/macOS,
-run `bash launch-aass.sh`. The launcher creates `.venv`, installs the exact
-`requirements.lock` dependencies and the CLI, installs Chromium if no system
-Chromium is available, and runs `doctor`. It never disables TLS verification.
-Linux browser system libraries may require your distribution's Playwright
-`install-deps chromium` command with administrator access. The CLI reports an
-unavailable browser if those prerequisites are missing.
+Linux/macOS development requires Python 3.12, Docker and Ollama. Existing checkouts
+are isolated task workspaces; do not create another worktree unless requested.
+Run `bash scripts/setup.sh` for the developer environment, or use the release
+launcher for runtime dependencies only. No platform is certified solely because
+the shared Python tests passed elsewhere. Windows CI and Defender results are
+separate observable evidence.
 
-For the sandbox, pull the verified immutable image once:
+The runtime lock contains exact SHA-256 wheel hashes and pinned build tools.
+Installation uses `--require-hashes --only-binary=:all:`. The reviewed source is
+installed with `--no-deps --no-build-isolation`; no implicit build dependencies are
+fetched. On a changed fingerprint, wheels are reinstalled from verified artifacts
+instead of trusting an old installed version number. Development/PostgreSQL and
+security-audit tools have separate locks and are not part of end-user setup.
+
+## Models and settings
+Ollama defaults to loopback port 11434. The installed model list is checked;
+qwen3.5:9b is preferred, then another installed Qwen, then an available model.
+AASS_WORKER_MODEL is explicit. A remote OLLAMA_HOST requires HTTPS without
+userinfo/query/path; local loopback HTTP is allowed. Vision actions require a
+vision-capable selected worker.
+
+Environment bindings and recognised private file settings are imported without
+executing shell text. Automatic discovery is limited as documented in the Windows
+guide. For another private file use the CLI's `--credentials-file` option. Do not
+store real keys in the runtime/target checkout. Example files contain names only.
+
+Official judge hosts are api.openai.com, generativelanguage.googleapis.com and
+api.anthropic.com. HTTPS and provider-adapter compatibility are validated before
+requests. To use a trusted custom HTTPS model gateway, set AASS_ALLOWED_JUDGE_HOSTS
+explicitly in the parent process environment, plus AASS_JUDGE_BASE_URL/model/key.
+That destination allowlist cannot be imported from Desktop files. Never approve
+a host you do not intend to receive your key and source. AASS_JUDGE_PROVIDER is
+`anthropic` for Anthropic Messages and `openai` for OpenAI-compatible endpoints.
+
+The menu's explicit provider preference is stored without a key. Supported
+services are auto/openai/gemini/anthropic. Default model names are conveniences,
+not evidence of availability on an account; check your provider and override the
+model in the menu. Provider conflicts fail before credential transmission.
+
+## Native CLI
+From an installed Windows folder use `.venv/Scripts/python.exe -m orchestration_canvas`;
+on Linux use `.venv/bin/aass` or `.venv/bin/python -m orchestration_canvas`.
 
 ```sh
-docker pull python:3.12-slim@sha256:a0f57064cbdcd6285fa45f51237ab0b35ea8ebaed06a1f5973e89e19dfb86704
+aass doctor
+aass verify-live
+aass run --workspace /absolute/path/to/separate/project --task "Implement addition with unit tests"
+aass status --workspace /absolute/path/to/separate/project
 ```
 
-Start Ollama using its installed desktop app or `ollama serve`. Install a worker
-model once with `ollama pull qwen3.5:9b`. AASS queries the actual `/api/tags` list,
-selects that exact model first, otherwise another installed Qwen model, otherwise
-the first available model. `AASS_WORKER_MODEL` always overrides selection. An
-empty model list fails readiness; AASS does not silently download a multi-GB model.
-If you use browser screenshots, choose a vision-capable local model.
+`doctor` checks local capabilities and configuration presence/validity; it does
+not authenticate the cloud account. `verify-live` makes real requests and can
+incur API charges. Paid verification is not required for package installation.
+HTTP diagnostics contain service/status/host and recognised provider codes, never
+raw error bodies or authorization headers.
 
-## Automatic credentials and model discovery
-Every CLI invocation automatically searches `~/Desktop` and
-`~/OneDrive/Desktop` to depth three. It reads `.env`/`*.env` files and `.txt` files
-inside folders whose names include key/api/token/credential. It skips symlinks,
-limits files to 64 KiB, and stops after 100 candidate files. Only runtime settings
-and recognized provider key names are imported. Input is simple KEY=value text,
-not executable shell. Existing process bindings override discovered values; files
-are sorted for deterministic precedence. Nothing is written back to Desktop.
+Run a new supervisor for each task. A single-writer lock protects target state.
+Source edits persist after interruption; they are not committed/pushed/rolled back
+automatically. Tests after the last write must have a nonzero count, and a strict
+independent verdict must approve before a task reports success. Empty test runs,
+compilation-only checks, malformed verdicts, issues and service errors cannot
+approve. Budgets cap each run at 20 iterations and 64,000 conservative token
+reservations, charging failed calls too; these are not account-wide dollar limits.
 
-Recognized keys: `AASS_JUDGE_API_KEY` with `AASS_JUDGE_MODEL`, or `OPENAI_API_KEY`,
-`GEMINI_API_KEY`/`GOOGLE_API_KEY`, or `ANTHROPIC_API_KEY`. Provider defaults are
-OpenAI `gpt-4.1`, Gemini `gemini-2.5-pro`, and Anthropic `claude-sonnet-4-5`.
-These are defaults, not a guarantee of account access; override `AASS_JUDGE_MODEL`
-and `AASS_JUDGE_BASE_URL` for your provider. `AASS_JUDGE_PROVIDER=anthropic` selects
-Anthropic Messages; `openai` selects the OpenAI-compatible adapter (also Gemini).
-The first configured provider is OpenAI, then Gemini, then Anthropic. AASS never
-prints or persists credential values. API calls incur your provider's fees;
-`verify-live` performs real requests. Key discovery alone is not authentication.
+## Isolation and supported workflows
+The worker can read regular contained files and replace contained source files
+atomically. Hidden/runtime/credential-like paths and symlinks are denied; reads
+and snapshots reject hardlinks and nonregular files. The executing runtime must
+be outside the target project. Docker tests run over a filtered read-only source
+snapshot: no host secrets/socket, no network, dropped capabilities, read-only root,
+512 MiB RAM, one CPU, 64 processes, bounded time/output. Docker shares the kernel;
+it is not a micro-VM. Only approved Python test/compile argv prefixes are accepted.
 
-Use `--no-desktop-discovery` to disable scanning, or select a private file:
+The default pinned Python image has unittest, not your project's dependencies.
+Build a trusted image with pinned project dependencies and set AASS_SANDBOX_IMAGE
+explicitly to its immutable digest when needed. No runtime package download or
+host-shell fallback exists inside a worker test. Tests write scratch data under
+/tmp; the source mount stays immutable. This runtime is for Python engineering
+workflows; other languages need explicit tools/images/policies.
 
-```sh
-python launch_aass.py --credentials-file /private/path/models.env doctor
-python launch_aass.py verify-live
-```
+## Browser and MCP
+Browser origins are explicitly authorised with `--browser-origin`. HTTP request
+routing blocks other origins; WebSockets, service workers and downloads are
+blocked. Screenshots are local worker inputs, size-limited and charged against
+the request budget; large images can trip the budget. Playwright implements this
+capability; no OSWorld service is bundled. Browser processes run on the host.
 
-Do not store real keys in the runtime or target checkout. `.env.example` contains
-only configuration names. Do not assume a child bootstrap script exports its
-environment into your parent shell: each CLI process imports the settings itself.
+MCP uses the official SDK with `--mcp-config /private/path/server.json`. Only
+operator-trusted stdio programs or approved HTTPS servers and listed tools are
+available. Stdio is a host process, not a container. Only listed environment
+names are passed; OAuth login is not implemented. Inputs/returned context and
+call duration are bounded. See examples/ in the development source.
 
-## Run a task
+For the optional PostgreSQL driver, run `python launch_aass.py --install-only --postgres`;
+this uses requirements-postgres.lock with runtime plus the two driver wheels,
+not the developer tool set. The PostgreSQL MCP server uses AASS_POSTGRES_DSN and an allowlisted
+AASS_POSTGRES_SCHEMAS. Use a least-privilege read-only role and verified TLS for
+remote databases. Fixed list/read tools quote identifiers, cap rows and use
+read-only transactions/statement timeouts; no arbitrary SQL tool is exposed.
+Only authorise data you permit the local model to read.
 
-```sh
-python launch_aass.py run --workspace /absolute/path/to/your-project \
-  --task "Implement integer addition and add executable unit tests" \
-  --iterations 12 --tokens 48000
-python launch_aass.py status --workspace /absolute/path/to/your-project
-```
-
-On Windows, replace paths and use a single line; `Launch-AASS.cmd` accepts the same
-arguments. `doctor`, failed runs and unavailable services return exit code 2;
-only an approved run returns 0. The headless executive canvas is
-`<project>/.aass/canvas.json`; telemetry is `<project>/.aass/trajectory.json`.
-The root `trajectory.json` generated by bootstrap is the original architecture
-seed, while each target owns its own runtime history. A workspace lock prevents
-concurrent AASS writers. A new run starts a fresh budget and does not resume an
-old task automatically. Interruptions preserve file edits; inspect Git before reruns.
-
-The worker gets fresh messages each iteration, the latest bounded observation,
-changed file names and recent trajectory. Three identical failures on the same
-files trigger a forced strategy pivot. After both alternative strategies are
-exhausted, the run stops. Repeated successes do not count as fixation. No run can
-exceed 20 iterations or the conservative 64,000-token reservation ceiling. Failed
-requests consume their reserved allowance. These are per-run request limits,
-not an account-wide dollar cap. New runs reset them.
-
-A passing nonzero-count test since the last write is required before independent
-cloud review. Compilation alone or `Ran 0 tests` cannot satisfy this gate. Judge
-failures, malformed verdicts and any reported issue cannot approve a task. The
-judge receives changed source and test evidence: do not use this mode for projects
-whose source may not be sent to your selected provider. Evidence is untrusted;
-LLM review and generated tests are not a proof of correctness or security.
-
-## Execution isolation and project dependencies
-Only argv commands beginning `python -m unittest`, `python -m pytest` or
-`python -m compileall` are accepted. Shells, destructive utilities, shell operators,
-interpreter snippets and plugin overrides are blacklisted. Actual isolation is
-provided by Docker, not the blacklist. Containers have no network, read-only source
-and root filesystem, dropped capabilities, no host credentials, 512 MiB RAM,
-one CPU, 64 processes, 60-second default timeout and 64 KiB output per stream.
-A filtered source snapshot excludes hidden/configuration files, credential-like
-paths, symlinks, caches and runtime state. It is limited to 5,000 files/32 MiB.
-Do not place secrets in ordinary source files; arbitrary content cannot be reliably
-classified by its filename. Docker shares the host kernel: this is not a micro-VM.
-
-The default immutable Python image has unittest, not pytest or your application's
-third-party dependencies. For a real project, build a trusted image with its pinned
-dependencies and set `AASS_SANDBOX_IMAGE` to its immutable image digest. No package
-installation is allowed during a task, and there is no host-execution fallback.
-Tests requiring writable workspaces must use `/tmp` or a separately designed image
-and test fixture; the source mount is intentionally immutable. This first runtime
-supports Python test workflows; Node/Rust/OS shell automation needs separate tool
-policies rather than bypassing this one.
-
-## Browser and computer use
-Authorize exact origins explicitly with `--browser-origin https://your-app.example`.
-The worker can navigate, read rendered text, click selectors or coordinates and
-capture a screenshot. Request routing blocks unlisted origins and redirects;
-downloads and service workers are disabled. Screenshots go in `.aass/browser.png`
-and are attached to the next local Ollama request for a vision-capable model.
-Images are charged conservatively against the hard request budget; a large
-screenshot can stop the run rather than bypass the budget. This is a Playwright
-implementation, not a bundled or validated OSWorld API service. Treat screenshots
-as potentially sensitive local artifacts. Browser code runs in a separate browser
-process on the host, not inside the task Docker container. Only authorize origins
-you trust; use a dedicated OS account for production.
-
-## MCP and read-only PostgreSQL
-Use `--mcp-config /private/path/server.json`; example configs are in `examples/`.
-Specify an absolute Python executable path for stdio servers (Windows uses
-`.venv/Scripts/python.exe`). Only listed tools are accessible. Stdio server
-programs are operator-trusted host programs, not model-supplied commands. The
-runtime passes only explicitly listed environment names to them. Remote MCP
-requires HTTPS; this version does not implement OAuth login or proxy-supplied
-MCP bearer headers. Inputs, outputs and call duration are bounded.
-
-For the bundled PostgreSQL server, provide `AASS_POSTGRES_DSN` and optional
-`AASS_POSTGRES_SCHEMAS=public` in the parent environment or selected credentials
-file. Use a least-privilege, read-only database role and `sslmode=verify-full` for
-remote databases. The server exposes `list_tables` and `read_rows`, not arbitrary
-SQL. Schemas are allowlisted, identifiers quoted, rows capped at 100, transactions
-read-only and statements limited to three seconds. Results can contain sensitive
-data: only authorize appropriate schemas and tools.
-
-## Verify, package and deploy
+## Test and release process
 
 ```sh
-bash scripts/setup.sh
 AASS_INTEGRATION=1 AASS_POSTGRES_INTEGRATION=1 bash scripts/verify.sh
 python scripts/package.py
 ```
 
-Integration tests start ephemeral Docker test containers and a loopback web server;
-PostgreSQL tests use a disposable database with a generated test-only password and
-remove the container afterward. No production database credentials are needed.
-`AASS_POSTGRES_INTEGRATION=1` requires the pinned PostgreSQL image in the tests;
-Docker can pull it. Ordinary tests clearly skip the explicitly gated integrations.
-`generated/verification.xml` records the latest test run. CI runs integrations
-without provider keys and therefore does not claim live model review.
+Developer setup installs requirements-dev.lock. Security tools use the separate
+requirements-audit.lock. Integration tests use disposable containers and generated
+test-only credentials; no production database key is required. JUnit output belongs
+to the current run in generated/. Gated unrun integrations are reported as skips.
 
-The ZIP in `dist/` excludes virtual environments, secrets, Git history and runtime
-state. Extract it on the target, launch, then run `verify-live` with your models and
-credentials. This is the final live-service check; tests using protocol fixtures
-cannot substitute for it. Linux was validated in the cloud. Windows/macOS launch
-paths are implemented but require verification on those operating systems.
-No auto-push, remote deployment, public endpoint or unattended OS service is
-created. Production invocation is the native bounded CLI under your own account.
-
-## Windows setup pauses during Python installation
-If the traceback points to the launcher's pip subprocess and
-`.venv/Scripts/python.exe -m pip --version` works, Python and the virtual
-environment are installed. The remaining dependency request needs diagnosis;
-reinstalling Docker or Ollama does not resolve that stage.
-
-The launcher prints stage labels, inherited installer output and a liveness
-message every 15 seconds. Pip uses verbose output, no interactive prompts,
-20-second socket timeouts and one network retry. A heartbeat indicates the
-child is still running; it does not prove download progress. Cancellation stops
-the active installer and allows a later retry. Package and TLS verification stay
-enabled. Pip's official option and logging documentation:
-https://pip.pypa.io/en/stable/cli/pip/
-
-Use `.venv/Scripts/python.exe -m pip --version` to verify pip independently. If
-verbose output reports a proxy, TLS, registry or wheel compatibility error,
-resolve that specific error; do not disable TLS checks, delete working models,
-or repeatedly restart the full prerequisite installer. Share only the relevant
-error with credentials removed, not full environment or credential files.
+Only a clean Git revision can build a normal release. The explicit release manifest
+excludes venvs, secrets, state, tests, dev scripts, nested ZIPs and executable
+binaries. Package bytes are deterministic across normalised line endings. A dirty
+local candidate cannot pass publication checks. Windows scans archive and extracted
+payload using Microsoft Defender; successful matching scan, dependency/source
+checks, Windows/Linux tests and GitHub provenance gate publication. Missing scan
+capability blocks release instead of pretending it passed. See SECURITY-REVIEW.md.

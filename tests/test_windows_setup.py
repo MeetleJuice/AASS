@@ -90,11 +90,14 @@ def prepare_flow(installer, monkeypatch, *, ready=True, live_fails=False, malfor
                     "checks": {
                         "judge_configuration": {"ready": ready},
                         "chromium": {"ready": True},
+                        "ollama_worker": {"ready": True},
+                        "docker": {"ready": True},
+                        "sandbox_image": {"ready": True},
                     },
                 }
             )
         if command[-1] == "verify-live" and live_fails:
-            raise SetupProblem("live cloud connection failed")
+            return 2, '{"stage":"cloud_judge","http_status":429}'
         return 0, ""
 
     monkeypatch.setattr(installer, "run", run)
@@ -103,7 +106,7 @@ def prepare_flow(installer, monkeypatch, *, ready=True, live_fails=False, malfor
 
 def test_installer_runs_all_gates_before_recording_ready(installer, monkeypatch):
     calls = prepare_flow(installer, monkeypatch)
-    assert installer.install() == 0
+    assert installer.install(skip_live=False) == 0
     assert calls[:2] == ["docker", "ollama"]
     assert any("--sandbox-smoke" in call for call in calls[2:])
     assert calls[-1][-1] == "verify-live"
@@ -114,7 +117,7 @@ def test_missing_credentials_preserves_install_and_reports_configuration_needed(
     installer, monkeypatch
 ):
     calls = prepare_flow(installer, monkeypatch, ready=False)
-    assert installer.install() == 2
+    assert installer.install() == 0
     assert not any("verify-live" in call for call in calls[2:])
     report = json.loads((installer.state / "setup-status.json").read_text())
     assert report["status"] == "installed_needs_configuration"
@@ -122,8 +125,11 @@ def test_missing_credentials_preserves_install_and_reports_configuration_needed(
 
 def test_live_failure_and_skip_never_record_ready(installer, monkeypatch):
     prepare_flow(installer, monkeypatch, live_fails=True)
-    with pytest.raises(SetupProblem, match="live cloud"):
-        installer.install()
+    assert installer.install(skip_live=False) == 0
+    assert (
+        json.loads((installer.state / "setup-status.json").read_text())["status"]
+        == "installed_cloud_unverified"
+    )
     assert json.loads((installer.state / "setup-status.json").read_text())["status"] != "ready"
     calls = prepare_flow(installer, monkeypatch)
     assert installer.install(skip_live=True) == 0

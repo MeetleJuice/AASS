@@ -1,6 +1,7 @@
 """Ephemeral Docker execution over a secret-filtered read-only source snapshot."""
 
 import os
+import re
 import shutil
 import subprocess
 import tempfile
@@ -10,6 +11,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from circuit_breaker import SafetyStop
+from settings import is_link
 
 COMMAND_BLACKLIST = frozenset(
     {
@@ -78,7 +80,7 @@ def snapshot(source, destination):
             for d in dirs
             if not d.startswith(".")
             and d not in EXCLUDED_DIRS
-            and not (base / d).is_symlink()
+            and not is_link(base / d)
             and not any(x in d.lower() for x in ("secret", "credential"))
         ]
         relative = base.relative_to(source)
@@ -87,8 +89,9 @@ def snapshot(source, destination):
         for name in files:
             path = base / name
             if (
-                path.is_symlink()
+                is_link(path)
                 or not path.is_file()
+                or path.stat().st_nlink > 1
                 or name.startswith(".")
                 or path.suffix.lower() in (".env", ".pem", ".key")
                 or name == "trajectory.json"
@@ -107,6 +110,8 @@ class ContainerSandbox:
         self.workspace = Path(workspace).resolve(strict=True)
         if not self.workspace.is_dir():
             raise ValueError("Workspace must be a directory")
+        if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._/:@-]{0,255}", image):
+            raise SafetyStop("Invalid sandbox image reference")
         self.image = image
         self.timeout = min(max(timeout, 1), 120)
 
@@ -135,7 +140,7 @@ class ContainerSandbox:
                 "--user",
                 f"{os.getuid()}:{os.getgid()}" if hasattr(os, "getuid") else "1000:1000",
                 "--tmpfs",
-                "/tmp:rw,nosuid,size=64m",
+                "/tmp:rw,nosuid,size=64m",  # nosec B108 # private container tmpfs, not a host temp path
                 "--mount",
                 f"type=bind,src={source},dst=/workspace,readonly",
                 "--workdir",

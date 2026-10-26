@@ -9,12 +9,24 @@ import time
 import venv
 from pathlib import Path
 
+from settings import is_link, subprocess_environment
+
 
 def setup_step(label, command, *, cwd=None, progress_interval=15):
     """Inherit console output and show liveness while an installer is quiet."""
     print(f"\n[AASS] {label}", flush=True)
     started = time.monotonic()
-    process = subprocess.Popen(command, cwd=cwd)
+    environment = subprocess_environment()
+    environment["PIP_CONFIG_FILE"] = os.devnull
+    for name in (
+        "PIP_TRUSTED_HOST",
+        "PIP_INDEX_URL",
+        "PIP_EXTRA_INDEX_URL",
+        "PIP_FIND_LINKS",
+        "PIP_NO_INDEX",
+    ):
+        environment.pop(name, None)
+    process = subprocess.Popen(command, cwd=cwd, env=environment)
     try:
         while True:
             try:
@@ -45,18 +57,37 @@ def main():
         raise SystemExit("Install Python 3.12 or newer, then relaunch AASS.")
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--install-only", action="store_true")
+    parser.add_argument(
+        "--dev", action="store_true", help="Install developer and PostgreSQL test dependencies"
+    )
     parser.add_argument("--integration", action="store_true")
+    parser.add_argument(
+        "--postgres",
+        action="store_true",
+        help="Include the optional read-only PostgreSQL MCP driver",
+    )
     args, remaining = parser.parse_known_args()
     print(f"[AASS] Python: {sys.executable}", flush=True)
     print(f"[AASS] Project: {root}", flush=True)
+    if is_link(environment):
+        raise SystemExit(
+            "The application .venv must be a normal directory, not a link or junction."
+        )
     if not executable.exists():
         print("[AASS] Creating virtual environment...", flush=True)
         venv.EnvBuilder(with_pip=True).create(environment)
     marker = environment / ".aass-installed"
     import hashlib
 
+    lockfile = root / (
+        "requirements-dev.lock"
+        if args.dev
+        else "requirements-postgres.lock"
+        if args.postgres
+        else "requirements.lock"
+    )
     fingerprint = hashlib.sha256(
-        (root / "requirements.lock").read_bytes() + (root / "pyproject.toml").read_bytes()
+        lockfile.read_bytes() + (root / "pyproject.toml").read_bytes() + str(root).encode()
     ).hexdigest()
     pip = [
         str(executable),
@@ -74,11 +105,23 @@ def main():
     if not marker.exists() or marker.read_text() != fingerprint:
         setup_step(
             "Installing locked Python dependencies",
-            [*pip, "install", "--prefer-binary", "-r", str(root / "requirements.lock")],
+            [
+                *pip,
+                "install",
+                "--force-reinstall",
+                "--require-hashes",
+                "--only-binary=:all:",
+                "--index-url",
+                "https://pypi.org/simple",
+                "-r",
+                str(lockfile),
+            ],
             cwd=root,
         )
         setup_step(
-            "Installing AASS application", [*pip, "install", "--no-deps", "-e", "."], cwd=root
+            "Installing AASS application",
+            [*pip, "install", "--no-deps", "--no-build-isolation", "-e", "."],
+            cwd=root,
         )
         # Prefer an already installed verified system Chromium over a second download.
         if not (os.environ.get("AASS_CHROMIUM_EXECUTABLE") or shutil.which("chromium")):
