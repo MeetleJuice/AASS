@@ -1,0 +1,31 @@
+AASS FOR WINDOWS
+================
+
+1. Extract the entire ZIP. Do not run the BAT file from inside the ZIP viewer.
+2. Double-click Install-AASS.bat.
+3. Leave the window open. Setup shows progress and writes a log in .aass.
+4. After SETUP COMPLETE, the project/task menu opens automatically.
+   For later launches, double-click Start-AASS.bat.
+
+Your installed Docker Desktop, Ollama and local models are reused. The installer
+starts Docker and Ollama if necessary. Missing prerequisites can be installed via
+winget; Windows may display an administrator permission prompt. If Windows needs
+WSL/virtualization changes or a restart, setup explains the next action. It does
+not force a reboot or silently change Windows features.
+
+Desktop and OneDrive Desktop .env files are searched automatically. Recognized
+cloud keys: OPENAI_API_KEY, GEMINI_API_KEY or ANTHROPIC_API_KEY. Existing environment
+bindings take precedence. No keys are included in this download. If no key is
+found, installation finishes with NEEDS ATTENTION and explains the required name.
+Do not send secret values in chat. Do not store real keys inside this folder.
+
+Setup checks real sandbox execution, browser readiness and model connections.
+The final cloud verification uses your provider account and may incur a charge.
+A green setup completion requires those live checks to pass.
+
+If setup is interrupted, double-click Install-AASS.bat again. Already installed
+packages and downloaded models are reused. Keep the last error lines if you need
+help; never share credentials. Detailed instructions: docs/OPERATIONS.md.
+
+Windows batch launchers need a real Windows destination check; the automated
+installer logic is tested in Linux with simulated Windows service responses.

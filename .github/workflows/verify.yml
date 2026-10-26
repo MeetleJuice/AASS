@@ -21,3 +21,20 @@ jobs:
           docker pull postgres:16-alpine@sha256:f4610795587492cd4fb887c2dc3de301b813278bb6f616992061141b5f15ac36
           docker pull python:3.12-slim@sha256:a0f57064cbdcd6285fa45f51237ab0b35ea8ebaed06a1f5973e89e19dfb86704
       - run: AASS_INTEGRATION=1 AASS_POSTGRES_INTEGRATION=1 scripts/verify.sh
+
+  windows-installer:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install -r requirements.lock
+      - run: python -m pytest -q tests/test_windows_setup.py tests/test_launcher.py
+      - name: Exercise the actual double-click entry point without changing the host
+        shell: pwsh
+        run: |
+          $env:AASS_PYTHON = (Get-Command python).Source
+          cmd /d /c "Install-AASS.bat --help <NUL"
+          if ($LASTEXITCODE -ne 0) { throw "Batch entry point failed" }

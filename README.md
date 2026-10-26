@@ -59,9 +59,14 @@ The five-layer headless Python runtime is implemented in this repository. The
 architecture above describes the goal; actual verified capabilities and external
 service requirements are documented separately below.
 
-**Start locally:** install Python 3.12+, Docker and Ollama. Download/extract the
-source, then double-click `Launch-AASS.cmd` on Windows or run
-`bash launch-aass.sh` on Linux/macOS. The launcher installs locked Python
+**Windows:** extract the current ZIP and double-click **Install-AASS.bat**.
+It finds or installs prerequisites, starts Docker/Ollama, installs dependencies,
+and runs sandbox, browser and live-model checks. After success, the task menu
+opens automatically. Use **Start-AASS.bat** for later launches. See
+[Windows instructions](docs/WINDOWS-INSTALL.md).
+
+**Linux/macOS:** install Python 3.12+, Docker and Ollama, then run
+`bash launch-aass.sh`. The launcher installs locked Python
 dependencies and detects Desktop `.env` files, recognized cloud keys, and your
 actual local Ollama models. It prefers `qwen3.5:9b` when installed. It never
 writes credential values into the architecture JSON or repository.

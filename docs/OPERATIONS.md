@@ -6,7 +6,10 @@ AASS is a headless Python application. Install Python 3.12+, Docker Desktop
 containers in Docker Desktop. Start Docker; AASS never exposes the Docker socket
 to a task. Keep your working project in a separate directory from the AASS runtime.
 
-Windows: extract the ZIP and double-click `Launch-AASS.cmd`. For Linux/macOS,
+Windows: extract the ZIP and double-click **Install-AASS.bat**. Its coordinator
+starts services, installs dependencies, checks readiness and opens the task menu
+after success. Later use **Start-AASS.bat**. See [Windows setup](WINDOWS-INSTALL.md).
+For Linux/macOS,
 run `bash launch-aass.sh`. The launcher creates `.venv`, installs the exact
 `requirements.lock` dependencies and the CLI, installs Chromium if no system
 Chromium is available, and runs `doctor`. It never disables TLS verification.

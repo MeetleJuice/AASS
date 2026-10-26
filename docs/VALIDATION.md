@@ -85,3 +85,13 @@ launcher successfully installed the locked dependencies into a fresh virtual
 environment. The same full integration suite then passed **63 tests, 0 skipped**
 in that extracted environment (15.06 seconds). This verifies Linux distribution
 installation; it does not establish Windows/macOS or live model readiness.
+
+## Double-click installer update
+The updated full Linux suite passed **77 tests, 0 failed, 0 skipped** (22.60
+seconds). New coverage exercises subprocess progress and deadlines, credential
+redaction, exclusive installation locking, prerequisite reuse, readiness and
+live-review failure gates, and the installer's real Docker isolation test.
+`Install-AASS.bat` and `Start-AASS.bat` are included in the ZIP. The Windows CI
+job now checks the platform-specific coordinator tests and invokes the actual
+batch entry point with `--help`. That job has not been observed running here;
+full Windows Desktop installation still needs confirmation on the destination.

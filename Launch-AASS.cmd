@@ -1,9 +1,13 @@
 @echo off
 cd /d "%~dp0"
-where py >nul 2>nul
-if %errorlevel% equ 0 (
-  py -3 launch_aass.py %*
-) else (
-  python launch_aass.py %*
-)
-if %errorlevel% neq 0 pause
+if "%~1"=="" goto interactive
+if not exist ".venv\Scripts\python.exe" goto install
+".venv\Scripts\python.exe" -u launch_aass.py %*
+if errorlevel 1 pause
+exit /b
+:interactive
+if not exist ".venv\Scripts\python.exe" goto install
+call Start-AASS.bat
+exit /b
+:install
+call Install-AASS.bat
