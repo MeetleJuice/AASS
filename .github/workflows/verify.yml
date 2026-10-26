@@ -39,7 +39,7 @@ jobs:
           docker pull postgres:16-alpine@sha256:f4610795587492cd4fb887c2dc3de301b813278bb6f616992061141b5f15ac36
           docker pull python:3.12-slim@sha256:a0f57064cbdcd6285fa45f51237ab0b35ea8ebaed06a1f5973e89e19dfb86704
           AASS_INTEGRATION=1 AASS_POSTGRES_INTEGRATION=1 bash scripts/verify.sh
-      - name: Windows tests and real batch entry point
+      - name: Windows hash-locked dependencies
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
@@ -47,8 +47,20 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Dependency installation failed' }
           .venv/Scripts/python -m pip install --no-deps --no-build-isolation -e .
           if ($LASTEXITCODE -ne 0) { throw 'Project installation failed' }
+      - name: Windows regression tests
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
           .venv/Scripts/python -m pytest -q --junitxml=generated/windows-verification.xml
-          if ($LASTEXITCODE -ne 0) { throw 'Windows tests failed' }
+          $testExit = $LASTEXITCODE
+          if ($testExit -ne 0) {
+            python scripts/report_test_failures.py generated/windows-verification.xml
+            throw "Windows regression tests failed (exit $testExit)"
+          }
+      - name: Windows actual batch entry point
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
           $env:AASS_PYTHON = (Get-Command python).Source
           cmd /d /c "Install-AASS.bat --help <NUL"
           if ($LASTEXITCODE -ne 0) { throw 'Batch entry point failed' }

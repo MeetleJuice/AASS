@@ -95,6 +95,7 @@ def build(root=ROOT, *, allow_dirty=False):
     with zipfile.ZipFile(destination, "w", zipfile.ZIP_DEFLATED, compresslevel=9) as archive:
         for name, data in sorted(content.items()):
             info = zipfile.ZipInfo(f"AASS-{version}/" + name, date_time=(2020, 1, 1, 0, 0, 0))
+            info.create_system = 3
             info.compress_type = zipfile.ZIP_DEFLATED
             info.external_attr = (0o100755 if name.endswith(".sh") else 0o100644) << 16
             archive.writestr(info, data)

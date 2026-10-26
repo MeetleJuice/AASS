@@ -190,3 +190,12 @@ def test_screenshot_is_attached_to_local_worker_and_budgeted(http_transport):
 
     with pytest.raises(SafetyStop, match="Token"):
         WorkerAgent().step("task", {"image_base64": "x" * 64000}, "strategy", CircuitBreaker())
+
+
+def test_new_project_without_git_metadata_can_be_mapped(tmp_path):
+    (tmp_path / "app.py").write_text("import json\n")
+    (tmp_path / ".env").write_text("private=value\n")
+    graph = RepoMapper(tmp_path).map()
+    assert graph["version_control"] == "none"
+    assert graph["files"] == ["app.py"]
+    assert graph["imports"]["app.py"] == ["json"]
