@@ -122,6 +122,18 @@ def failure_report(error, stage):
             report["hint"] = (
                 "The API account has no usable quota or credit. Check provider billing; an app subscription may not include API credit."
             )
+        google_hints = {
+            "API_KEY_INVALID": "Google rejected this API key. Choose the private file containing your current Gemini API key, then refresh detection.",
+            "API_KEY_EXPIRED": "This Google API key has expired. Update it in your private file and refresh detection.",
+            "API_KEY_SERVICE_BLOCKED": "This key's API restrictions block the Gemini service. Review its allowed APIs in Google Cloud or AI Studio.",
+            "API_KEY_HTTP_REFERRER_BLOCKED": "This key is restricted to browser referrers. Use a key authorized for this desktop application's API requests.",
+            "API_KEY_IP_ADDRESS_BLOCKED": "This key's IP restrictions block this computer. Review its allowed IP addresses in Google Cloud.",
+            "SERVICE_DISABLED": "Enable the Generative Language API for the Google project that owns this key, then retry. Local installation is complete.",
+            "BILLING_DISABLED": "Google reports that project billing is disabled. Check the API project's billing and quota, then retry.",
+            "CONSUMER_INVALID": "Google could not use this API project. Check the project that owns your Gemini key in AI Studio or Google Cloud.",
+        }
+        if code in google_hints:
+            report["hint"] = google_hints[code]
     elif isinstance(error, httpx.TransportError):
         report["hint"] = (
             "The selected service could not be reached or timed out. Check its connection and startup status."

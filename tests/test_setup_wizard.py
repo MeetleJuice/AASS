@@ -354,3 +354,24 @@ def test_model_choice_never_invents_a_provider_model():
         gui.preferred_model([{"id": "gemini-2.5-flash"}, {"id": "gemini-3-flash"}])
         == "gemini-3-flash"
     )
+
+
+def test_cloud_check_log_identifies_selected_model_and_route(wizard_factory):
+    app, controller, _ = wizard_factory()
+    select_model(app)
+    app.worker_passed = True
+    controller.cloud_result = {
+        "status": "error",
+        "http_status": 404,
+        "service": "gemini",
+        "model": "gemini-flash-latest",
+        "api_route": "generateContent",
+        "provider_code": "NOT_FOUND",
+        "hint": "Choose another model.",
+    }
+    app.check_connections()
+    settle(app)
+    assert "model gemini-flash-latest" in app.log.text
+    assert "API: generateContent" in app.log.text
+    assert "code: NOT_FOUND" in app.log.text
+    assert app.worker_passed and not app.cloud_passed

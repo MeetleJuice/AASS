@@ -218,7 +218,7 @@ def test_packaged_release_is_deterministic_and_contains_no_nested_payloads(tmp_p
         archive.extractall(tmp_path)
     release = next(tmp_path.iterdir())
     manifest = verify(release)
-    assert manifest["version"] == "1.2.0"
+    assert manifest["version"] == "1.2.1"
     assert {"setup_api.py", "setup_controller.py", "setup_wizard.py"} <= manifest["files"].keys()
 
 

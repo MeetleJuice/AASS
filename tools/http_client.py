@@ -5,6 +5,16 @@ import json
 import httpx
 
 MAX_RESPONSE_BYTES = 256 * 1024
+GOOGLE_REASONS = {
+    "API_KEY_INVALID",
+    "API_KEY_EXPIRED",
+    "API_KEY_SERVICE_BLOCKED",
+    "API_KEY_HTTP_REFERRER_BLOCKED",
+    "API_KEY_IP_ADDRESS_BLOCKED",
+    "SERVICE_DISABLED",
+    "BILLING_DISABLED",
+    "CONSUMER_INVALID",
+}
 
 
 def post_json(client, url, *, payload, headers=None):
@@ -37,9 +47,20 @@ def post_json(client, url, *, payload, headers=None):
                 "UNAUTHENTICATED",
             }
             if isinstance(detail, dict):
+                reasons = detail.get("details", [])
+                if isinstance(reasons, list):
+                    for entry in reasons:
+                        reason = entry.get("reason") if isinstance(entry, dict) else None
+                        if isinstance(reason, str) and reason in GOOGLE_REASONS:
+                            error.provider_code = reason
+                            break
                 for field in ("code", "type", "status"):
                     code = detail.get(field)
-                    if isinstance(code, str) and code in known:
+                    if (
+                        not getattr(error, "provider_code", None)
+                        and isinstance(code, str)
+                        and code in known
+                    ):
                         error.provider_code = code
                         break
             raise

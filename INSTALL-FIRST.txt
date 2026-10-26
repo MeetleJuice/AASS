@@ -1,4 +1,4 @@
-AASS 1.2.0 — WINDOWS GUIDED SETUP
+AASS 1.2.1 — WINDOWS GUIDED SETUP
 ================================
 
 1. Extract the complete release ZIP. Open the extracted folder.

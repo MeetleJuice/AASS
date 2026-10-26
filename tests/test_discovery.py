@@ -28,10 +28,7 @@ def test_automatic_desktop_dotenv_and_provider_mapping(tmp_path, monkeypatch):
     names = discover_api_keys()
     assert "AASS_JUDGE_API_KEY" in names
     assert os.environ["AASS_JUDGE_API_KEY"] == "fixture-not-a-real-key"
-    assert (
-        os.environ["AASS_JUDGE_BASE_URL"]
-        == "https://generativelanguage.googleapis.com/v1beta/openai"
-    )
+    assert os.environ["AASS_JUDGE_BASE_URL"] == "https://generativelanguage.googleapis.com/v1beta"
     assert os.environ["PATH"] != "/bad"
     assert not (desktop / "generated").exists()
 

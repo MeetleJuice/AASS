@@ -74,6 +74,13 @@ def judge_url(value, provider="openai"):
     if parsed.hostname in JUDGE_HOSTS:
         if (provider == "anthropic") != (parsed.hostname == "api.anthropic.com"):
             raise ValueError("Judge adapter and endpoint belong to different providers")
+        if (provider == "gemini") and parsed.hostname != "generativelanguage.googleapis.com":
+            raise ValueError("Judge adapter and endpoint belong to different providers")
+    if provider == "gemini" and (
+        parsed.hostname != "generativelanguage.googleapis.com"
+        or parsed.path.rstrip("/") not in {"/v1beta", "/v1", "/v1beta/openai"}
+    ):
+        raise ValueError("Native Gemini requires its official versioned API endpoint")
     return value.rstrip("/")
 
 

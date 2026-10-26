@@ -1,3 +1,27 @@
+# Gemini native API correction 1.2.1
+
+A user completed all local installation, package, Docker sandbox, browser and
+Ollama checks, then received404 from the cloud judge after Gemini model discovery.
+The log lacked the selected model ID, so it does not establish the exact account
+or model failure. The code did establish a protocol mismatch: native models.list
+capabilities were used to populate a dropdown that called OpenAI-compatible chat.
+
+Gemini judging now uses native generateContent, including generic configurations
+that previously pointed at the official /v1beta/openai endpoint. Request IDs,
+headers, schema, output limits, legacy migration, blocked/incomplete responses,
+failed calls and safe error context are covered without real account credentials.
+A discovery-to-connection integration test exercises both actual adapters through
+one mock HTTP transport and the same model ID. Local suite:295 passed,2 Windows-only
+skips. Bandit reports no medium/high finding. Real API entitlement and quota still
+require the user's explicit connection test; no live Gemini account success is
+claimed from mocked tests. Publication retains actual Windows and Defender gates.
+
+Official protocol references reviewed:
+- https://raw.githubusercontent.com/googleapis/python-genai/main/google/genai/models.py
+- https://raw.githubusercontent.com/googleapis/python-genai/main/README.md
+
+---
+
 # Guided setup 1.2.0 verification
 
 Observed published release: [v1.2.0-9124d52](https://github.com/MeetleJuice/AASS/releases/tag/v1.2.0-9124d52),

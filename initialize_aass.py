@@ -51,12 +51,12 @@ PROVIDER_DEFAULTS = (
     ("OPENAI_API_KEY", "https://api.openai.com/v1", "gpt-4.1"),
     (
         "GEMINI_API_KEY",
-        "https://generativelanguage.googleapis.com/v1beta/openai",
+        "https://generativelanguage.googleapis.com/v1beta",
         "gemini-flash-latest",
     ),
     (
         "GOOGLE_API_KEY",
-        "https://generativelanguage.googleapis.com/v1beta/openai",
+        "https://generativelanguage.googleapis.com/v1beta",
         "gemini-flash-latest",
     ),
 )
@@ -72,9 +72,9 @@ def configure_provider():
         "openai": ("OPENAI_API_KEY", "https://api.openai.com/v1", "gpt-4.1", "openai"),
         "gemini": (
             "GEMINI_API_KEY",
-            "https://generativelanguage.googleapis.com/v1beta/openai",
+            "https://generativelanguage.googleapis.com/v1beta",
             "gemini-flash-latest",
-            "openai",
+            "gemini",
         ),
         "anthropic": (
             "ANTHROPIC_API_KEY",

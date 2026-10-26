@@ -296,6 +296,18 @@ class SetupWizard:
         hint = report.get("hint", "Check this provider's configuration, then retry.")
         status = report.get("http_status")
         text = message + (f" (HTTP {status})" if status else "") + " " + hint
+        if report.get("model"):
+            context = (
+                "Provider: "
+                + report.get("service", self.provider.get())
+                + "; model: "
+                + report["model"]
+            )
+            if report.get("api_route"):
+                context += "; API: " + report["api_route"]
+            if report.get("provider_code"):
+                context += "; code: " + report["provider_code"]
+            self.append(context)
         self.notice.set(text)
         self.connection_status.set(text)
         self.append(text)
@@ -502,7 +514,11 @@ class SetupWizard:
             self.model.get(),
         ]
         self.start(
-            "Checking the independent cloud judge (uses your API account)...",
+            "Checking "
+            + self.provider.get()
+            + " model "
+            + self.model.get()
+            + " (uses your API account)...",
             lambda: self.controller.json_operation(args, timeout=180),
             self.cloud_checked,
         )

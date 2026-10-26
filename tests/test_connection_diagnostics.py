@@ -64,6 +64,54 @@ def test_unrecognized_provider_codes_are_not_echoed():
     assert "secret-value" not in json.dumps(report)
 
 
+@pytest.mark.parametrize(
+    "reason,status,expected",
+    [
+        ("API_KEY_INVALID", 400, "current Gemini API key"),
+        ("SERVICE_DISABLED", 403, "Enable the Generative Language API"),
+        ("BILLING_DISABLED", 403, "billing"),
+        ("API_KEY_HTTP_REFERRER_BLOCKED", 403, "browser referrers"),
+    ],
+)
+def test_google_error_reasons_provide_specific_private_account_recovery(reason, status, expected):
+    with httpx.Client(
+        transport=httpx.MockTransport(
+            lambda request: httpx.Response(
+                status,
+                json={
+                    "error": {
+                        "status": "PERMISSION_DENIED",
+                        "message": "private response",
+                        "details": [{"reason": reason, "metadata": {"key": "private-key"}}],
+                    }
+                },
+            )
+        )
+    ) as client:
+        with pytest.raises(httpx.HTTPStatusError) as caught:
+            post_json(client, "https://generativelanguage.googleapis.com/v1beta", payload={})
+    report = cli.failure_report(caught.value, "cloud_judge")
+    assert report["provider_code"] == reason
+    assert expected in report["hint"]
+    assert "private-key" not in json.dumps(report)
+    assert "private response" not in json.dumps(report)
+
+
+def test_unknown_google_error_detail_is_never_displayed():
+    with httpx.Client(
+        transport=httpx.MockTransport(
+            lambda request: httpx.Response(
+                400, json={"error": {"details": [{"reason": "SECRET_PRIVATE_REASON"}]}}
+            )
+        )
+    ) as client:
+        with pytest.raises(httpx.HTTPStatusError) as caught:
+            post_json(client, "https://generativelanguage.googleapis.com/v1beta", payload={})
+    assert "SECRET_PRIVATE_REASON" not in json.dumps(
+        cli.failure_report(caught.value, "cloud_judge")
+    )
+
+
 @pytest.mark.parametrize("failing_stage", ["ollama_worker", "cloud_judge"])
 def test_live_cli_reports_which_request_failed(monkeypatch, capsys, failing_stage):
     monkeypatch.setattr(cli, "configure_provider", lambda: None)

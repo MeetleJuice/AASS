@@ -1,3 +1,25 @@
+# AASS 1.2.1 — align Gemini discovery and review
+
+Gemini's dropdown lists models advertising native generateContent. The judge now
+uses that same native API, instead of assuming each listed model is available
+through Google's OpenAI compatibility endpoint. Existing official Google endpoint
+settings migrate in memory; keys remain in the same private file. No additional
+SDK or automatic paid retry is introduced.
+
+Connection progress and errors identify the selected provider, model and API
+route. Recognized Google key restrictions, disabled API/project billing and
+invalid-key reason codes provide specific recovery guidance without displaying
+provider messages or key values. A successful local worker check is retained
+while retrying the cloud. Local installation is already complete when only the
+cloud check fails.
+
+Native replies require a complete structured verdict. Blocked, incomplete,
+thought-only and malformed responses fail closed. Model listing does not prove
+account entitlement or quota; actual connection testing still requires the
+user's own key on their PC. Windows/runtime/Defender publication gates remain.
+
+---
+
 # AASS 1.2.0 — guided setup and model discovery
 
 Double-click Install-AASS.bat to open one graphical setup window. It reuses local

@@ -167,7 +167,7 @@ def test_cloud_probe_uses_selected_service_and_does_not_retest_worker(monkeypatc
     monkeypatch.setattr(api, "JudgeEvaluator", Judge)
     report = api.verify_judge_report("gemini", "gemini-test")
     assert calls == [
-        (SECRET, "gemini-test", "https://generativelanguage.googleapis.com/v1beta/openai", "openai")
+        (SECRET, "gemini-test", "https://generativelanguage.googleapis.com/v1beta", "gemini")
     ]
     assert report["approved"] is True
     assert SECRET not in json.dumps(report)
@@ -205,6 +205,9 @@ def test_cloud_http_failures_are_recoverable_and_secret_free(monkeypatch, capsys
     report = json.loads(capsys.readouterr().out)
     assert report["http_status"] == status
     assert report["stage"] == "cloud_judge"
+    assert report["model"] == "gemini-test"
+    assert report["service"] == "gemini"
+    assert report["api_route"] == "generateContent"
     assert SECRET not in json.dumps(report)
     if status == 404:
         assert "Reload available models" in report["hint"]
@@ -221,3 +224,78 @@ def test_arbitrary_exception_text_never_reaches_gui(monkeypatch, capsys):
     assert SECRET not in output.out + output.err
     report = json.loads(output.out)
     assert report["code"] == "credentials_configuration"
+
+
+def test_discovered_gemini_model_is_checked_using_the_same_native_api(monkeypatch, capsys):
+    from tools.model_catalog import ENDPOINTS
+
+    monkeypatch.setenv("GEMINI_API_KEY", SECRET)
+    original_client = httpx.Client
+    requests = []
+
+    def handle(request):
+        requests.append(request)
+        assert request.headers["x-goog-api-key"] == SECRET
+        assert SECRET not in str(request.url)
+        if request.method == "GET":
+            assert str(request.url).split("?")[0] == ENDPOINTS["gemini"]
+            return httpx.Response(
+                200,
+                json={
+                    "models": [
+                        {
+                            "name": "models/gemini-listed-flash",
+                            "supportedGenerationMethods": ["generateContent"],
+                        }
+                    ]
+                },
+            )
+        assert request.method == "POST"
+        assert (
+            str(request.url)
+            == "https://generativelanguage.googleapis.com/v1beta/models/gemini-listed-flash:generateContent"
+        )
+        return httpx.Response(
+            200,
+            json={
+                "candidates": [
+                    {
+                        "finishReason": "STOP",
+                        "content": {
+                            "parts": [
+                                {
+                                    "text": json.dumps(
+                                        {
+                                            "approved": True,
+                                            "reason": "Protocol sample matches.",
+                                            "issues": [],
+                                        }
+                                    )
+                                }
+                            ]
+                        },
+                    }
+                ]
+            },
+        )
+
+    monkeypatch.setattr(
+        httpx,
+        "Client",
+        lambda **kwargs: original_client(transport=httpx.MockTransport(handle), **kwargs),
+    )
+    assert api.main(["models", "--service", "gemini"]) == 0
+    model = json.loads(capsys.readouterr().out)["models"][0]["id"]
+    assert api.main(["verify-judge", "--service", "gemini", "--model", model]) == 0
+    result = json.loads(capsys.readouterr().out)
+    assert result["approved"]
+    assert [request.method for request in requests] == ["GET", "POST"]
+    assert SECRET not in json.dumps(result)
+
+
+def test_rejected_secret_model_is_never_echoed_in_error_context(monkeypatch, capsys):
+    monkeypatch.setenv("GEMINI_API_KEY", SECRET)
+    assert api.main(["verify-judge", "--service", "gemini", "--model", SECRET]) == 2
+    result = capsys.readouterr().out
+    assert SECRET not in result
+    assert "model" not in json.loads(result)

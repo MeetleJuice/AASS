@@ -20,8 +20,8 @@ PROVIDERS = {
     "gemini": {
         "label": "Google Gemini",
         "keys": ("GEMINI_API_KEY", "GOOGLE_API_KEY"),
-        "url": "https://generativelanguage.googleapis.com/v1beta/openai",
-        "adapter": "openai",
+        "url": "https://generativelanguage.googleapis.com/v1beta",
+        "adapter": "gemini",
     },
     "openai": {
         "label": "OpenAI",
@@ -255,6 +255,23 @@ def main(argv=None):
             report = verify_judge_report(args.service, args.model)
     except Exception as error:
         report = _error_report(error, args.operation)
+        if args.operation == "verify-judge":
+            # Construct context from validated selections, never error bodies/URLs.
+            model = args.model
+            secrets = [os.environ[name] for name in settings.SECRET_NAMES if os.environ.get(name)]
+            if MODEL_ID.fullmatch(model) and not any(value in model for value in secrets):
+                report.update(
+                    service=args.service,
+                    model=model,
+                    api_host=urlsplit(PROVIDERS[args.service]["url"]).hostname,
+                )
+                report["api_route"] = (
+                    "generateContent"
+                    if args.service == "gemini"
+                    else "messages"
+                    if args.service == "anthropic"
+                    else "chat/completions"
+                )
     print(json.dumps(report, ensure_ascii=True))
     return 0 if report["status"] == "ok" else 2
 

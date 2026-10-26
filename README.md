@@ -2,7 +2,7 @@
 
 A bounded Python engineering agent with a local Ollama worker, isolated
 Docker tests, persistent failure history, and an independent cloud review gate.
-Preferred local model: **qwen3.5:9b**. Current version: **1.2.0**, with guided Windows setup.
+Preferred local model: **qwen3.5:9b**. Current version: **1.2.1**, with guided Windows setup.
 
 ## Windows installation
 

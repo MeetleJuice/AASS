@@ -1,6 +1,6 @@
 # Windows — guided setup
 
-Download the full **AASS 1.2.0 release ZIP** from
+Download the full **AASS 1.2.1 release ZIP** from
 [GitHub Releases](https://github.com/MeetleJuice/AASS/releases/latest). Extract all
 files, then double-click **Install-AASS.bat**. No PowerShell folder navigation is
 needed. Keep Docker Desktop open with its Linux engine running.
@@ -97,3 +97,13 @@ Advanced automation remains available through `Install-AASS.bat --help`,
 Only designated model-client subprocesses receive API keys. Package, daemon,
 browser and worker-tool children have credentials stripped. Share specific
 sanitized stage/status messages rather than environment dumps or private files.
+
+## Gemini checks in 1.2.1
+
+Gemini model discovery and judging use the native generateContent API. Old
+Google OpenAI-compatible URLs are migrated in memory; you do not need to rewrite
+your private file. A cloud failure log now includes the exact model and API route.
+If a listed model still returns404, select another listed text model and retry
+Test connections. The successful worker check is reused; packages stay installed.
+Only explicit tests/runs make generation requests, and account restrictions or
+quota still need to be resolved with Google when reported.

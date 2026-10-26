@@ -39,7 +39,10 @@ requests. To use a trusted custom HTTPS model gateway, set AASS_ALLOWED_JUDGE_HO
 explicitly in the parent process environment, plus AASS_JUDGE_BASE_URL/model/key.
 That destination allowlist cannot be imported from Desktop files. Never approve
 a host you do not intend to receive your key and source. AASS_JUDGE_PROVIDER is
-`anthropic` for Anthropic Messages and `openai` for OpenAI-compatible endpoints.
+`gemini` for native Google generateContent, `anthropic` for Anthropic Messages
+and `openai` for OpenAI-compatible endpoints. Existing official Google
+`/v1beta/openai` configurations are normalized to native `/v1beta` by the judge;
+key contents and selected model IDs are preserved.
 
 The window stores a provider/model preference without a key and loads model IDs
 from official provider catalogs. Metadata lookup does not establish generation
