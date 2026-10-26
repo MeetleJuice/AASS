@@ -50,3 +50,42 @@ This system is configured to self-compile autonomously across a 5-layer checklis
 5. **Layer 5: Executive Canvas** (CRDAL core supervisor orchestration graphs)
 
 
+
+---
+
+## AASS 1.0 runtime implementation
+
+The five-layer headless Python runtime is implemented in this repository. The
+architecture above describes the goal; actual verified capabilities and external
+service requirements are documented separately below.
+
+**Start locally:** install Python 3.12+, Docker and Ollama. Download/extract the
+source, then double-click `Launch-AASS.cmd` on Windows or run
+`bash launch-aass.sh` on Linux/macOS. The launcher installs locked Python
+dependencies and detects Desktop `.env` files, recognized cloud keys, and your
+actual local Ollama models. It prefers `qwen3.5:9b` when installed. It never
+writes credential values into the architecture JSON or repository.
+
+```sh
+python launch_aass.py doctor
+python launch_aass.py verify-live
+python launch_aass.py run --workspace /absolute/path/to/project \
+  --task "Implement the requested feature and verify it with unit tests"
+```
+
+Use a separate target project, so generated changes cannot rewrite the executing
+AASS runtime. Worker tests execute in bounded, networkless Docker containers.
+The independent cloud judge must approve before a task can report success.
+Unavailable model services and missing credentials fail readiness explicitly.
+This is a bounded Python engineering runtime, not an unrestricted OS agent or a
+proof that arbitrary generated programs are production safe.
+
+- [Implementation plan](docs/PLAN.md)
+- [Local setup, credentials, MCP, browser and deployment](docs/OPERATIONS.md)
+- [Architecture and trust boundaries](docs/ARCHITECTURE.md)
+- [Validation evidence](docs/VALIDATION.md)
+
+The original supplied initializer was corrected to preserve telemetry, report
+actual Ollama availability, and keep secret values out of generated specifications.
+Browser automation uses Playwright with optional screenshot input to the local
+vision worker; it does not bundle an OSWorld service.

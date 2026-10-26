@@ -1,0 +1,6 @@
+{
+  "command": "/absolute/path/to/AASS/.venv/bin/python",
+  "args": ["-m", "tools.postgres_mcp"],
+  "allowed_tools": ["list_tables", "read_rows"],
+  "environment_names": ["AASS_POSTGRES_DSN", "AASS_POSTGRES_SCHEMAS"]
+}

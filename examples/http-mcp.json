@@ -1,0 +1,4 @@
+{
+  "url": "https://your-mcp-host.example/mcp",
+  "allowed_tools": ["list_tables", "read_rows"]
+}
