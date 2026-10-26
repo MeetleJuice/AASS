@@ -80,3 +80,47 @@ def test_anthropic_desktop_key_is_mapped_to_independent_judge(tmp_path, monkeypa
     discover_api_keys()
     assert os.environ["AASS_JUDGE_API_KEY"] == "fixture-anthropic"
     assert os.environ["AASS_JUDGE_PROVIDER"] == "anthropic"
+
+
+def test_app_local_env_and_notepad_filename_are_recognized(tmp_path, monkeypatch):
+    clear_provider(monkeypatch)
+    app = tmp_path / "application"
+    app.mkdir()
+    monkeypatch.setattr("initialize_aass.__file__", str(app / "initialize_aass.py"))
+    monkeypatch.setattr(Path, "home", lambda: tmp_path)
+    monkeypatch.setenv("AASS_WORKER_MODEL", "process-model")
+    (app / ".env.txt").write_text(
+        "GEMINI_API_KEY=fixture-local-key\nAASS_WORKER_MODEL=file-model\n"
+    )
+    discover_api_keys()
+    assert os.environ["AASS_JUDGE_API_KEY"] == "fixture-local-key"
+    assert os.environ["AASS_JUDGE_MODEL"] == "gemini-flash-latest"
+    assert os.environ["AASS_WORKER_MODEL"] == "process-model"
+
+
+def test_app_env_takes_precedence_over_notepad_and_desktop_files(tmp_path, monkeypatch):
+    clear_provider(monkeypatch)
+    app = tmp_path / "application"
+    app.mkdir()
+    desktop = tmp_path / "Desktop"
+    desktop.mkdir()
+    monkeypatch.setattr("initialize_aass.__file__", str(app / "initialize_aass.py"))
+    monkeypatch.setattr(Path, "home", lambda: tmp_path)
+    (app / ".env").write_text("GEMINI_API_KEY=preferred-local-fixture\n")
+    (app / ".env.txt").write_text("GEMINI_API_KEY=notepad-fixture\n")
+    (desktop / ".env").write_text("GEMINI_API_KEY=desktop-fixture\n")
+    discover_api_keys()
+    assert os.environ["AASS_JUDGE_API_KEY"] == "preferred-local-fixture"
+
+
+def test_model_preference_overrides_an_explicit_generic_key_configuration(monkeypatch):
+    from initialize_aass import configure_provider
+
+    clear_provider(monkeypatch)
+    monkeypatch.setenv("AASS_JUDGE_API_KEY", "fixture-generic-key")
+    monkeypatch.setenv("AASS_JUDGE_MODEL", "old-model")
+    monkeypatch.setattr(
+        "initialize_aass.provider_preferences", lambda: {"service": "auto", "model": "chosen-model"}
+    )
+    configure_provider()
+    assert os.environ["AASS_JUDGE_MODEL"] == "chosen-model"

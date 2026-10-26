@@ -7,7 +7,13 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
-from settings import CREDENTIAL_SETTINGS, is_link, ollama_url, provider_preferences
+from settings import (
+    CREDENTIAL_SETTINGS,
+    is_link,
+    ollama_url,
+    provider_preferences,
+    selected_credentials_file,
+)
 
 BUILD_ORDER = [
     (1, "Infrastructure & Safety", ["sandboxes/container.py", "circuit_breaker.py"]),
@@ -24,7 +30,9 @@ def load_credentials(path):
     path = Path(path)
     if is_link(path) or not path.is_file() or path.stat().st_size > 64 * 1024:
         raise ValueError("Credentials file must be a regular file no larger than 64 KiB")
-    for line in path.read_text(encoding="utf-8-sig").splitlines():
+    content = path.read_bytes()
+    encoding = "utf-16" if content.startswith((b"\xff\xfe", b"\xfe\xff")) else "utf-8-sig"
+    for line in content.decode(encoding).splitlines():
         line = line.strip()
         if not line or line.startswith("#") or "=" not in line:
             continue
@@ -41,8 +49,16 @@ def load_credentials(path):
 
 PROVIDER_DEFAULTS = (
     ("OPENAI_API_KEY", "https://api.openai.com/v1", "gpt-4.1"),
-    ("GEMINI_API_KEY", "https://generativelanguage.googleapis.com/v1beta/openai", "gemini-2.5-pro"),
-    ("GOOGLE_API_KEY", "https://generativelanguage.googleapis.com/v1beta/openai", "gemini-2.5-pro"),
+    (
+        "GEMINI_API_KEY",
+        "https://generativelanguage.googleapis.com/v1beta/openai",
+        "gemini-flash-latest",
+    ),
+    (
+        "GOOGLE_API_KEY",
+        "https://generativelanguage.googleapis.com/v1beta/openai",
+        "gemini-flash-latest",
+    ),
 )
 
 
@@ -57,7 +73,7 @@ def configure_provider():
         "gemini": (
             "GEMINI_API_KEY",
             "https://generativelanguage.googleapis.com/v1beta/openai",
-            "gemini-2.5-pro",
+            "gemini-flash-latest",
             "openai",
         ),
         "anthropic": (
@@ -70,12 +86,18 @@ def configure_provider():
     if selected not in {"auto", *providers}:
         raise ValueError("Unsupported provider selection")
     if selected == "auto" and os.environ.get("AASS_JUDGE_API_KEY"):
+        if preferences.get("model"):
+            os.environ["AASS_JUDGE_MODEL"] = preferences["model"]
         return
     candidates = providers.items() if selected == "auto" else [(selected, providers[selected])]
     for service, (name, endpoint, model, adapter) in candidates:
         key = os.environ.get(name) or (
             os.environ.get("GOOGLE_API_KEY") if service == "gemini" else None
         )
+        if not key and selected != "auto":
+            base = os.environ.get("AASS_JUDGE_BASE_URL", "")
+            if urlsplit(base).hostname == urlsplit(endpoint).hostname:
+                key = os.environ.get("AASS_JUDGE_API_KEY")
         if not key:
             continue
         base = os.environ.get("AASS_JUDGE_BASE_URL")
@@ -97,8 +119,21 @@ def configure_provider():
 
 
 def discover_api_keys(*, configure=True):
-    """Import predictable Desktop .env files and bounded credential folders only."""
+    """Import fixed app-local .env files, Desktop .env and bounded credential folders."""
     scanned = 0
+    # A user-selected application-local credential file is a fixed path, never a recursive scan.
+    application = Path(__file__).resolve().parent
+    selected_file = selected_credentials_file(application)
+    if selected_file is not None:
+        # A stale or unreadable explicit choice needs attention, not silent fallback.
+        load_credentials(selected_file)
+    for name in (".env", ".env.txt"):
+        local = application / name
+        if local.is_file() and not is_link(local):
+            try:
+                load_credentials(local)
+            except (OSError, UnicodeError, ValueError):
+                continue
     for desktop in (Path.home() / "Desktop", Path.home() / "OneDrive/Desktop"):
         if not desktop.is_dir() or is_link(desktop):
             continue
@@ -205,7 +240,16 @@ def main():
     if args.credentials_file:
         load_credentials(args.credentials_file)
     if not args.no_desktop_discovery:
-        discover_api_keys(configure=False)
+        try:
+            discover_api_keys(configure=False)
+        except (OSError, ValueError):
+            # Architecture generation and package setup do not need cloud keys.
+            import sys
+
+            print(
+                "Private credential-file selection needs attention; choose it again in the setup window. Local bootstrap will continue.",
+                file=sys.stderr,
+            )
     spec = bootstrap_workspace(args.root, verify_ollama())
     print(
         json.dumps(

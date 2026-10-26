@@ -72,14 +72,16 @@ jobs:
         shell: pwsh
         run: |
           $clean = Join-Path $env:RUNNER_TEMP 'aass-clean-runtime'
-          Expand-Archive -LiteralPath dist/AASS-1.1.0.zip -DestinationPath $clean
-          $root = Join-Path $clean 'AASS-1.1.0'
+          Expand-Archive -LiteralPath dist/AASS-1.2.0.zip -DestinationPath $clean
+          $root = Join-Path $clean 'AASS-1.2.0'
           $env:PLAYWRIGHT_BROWSERS_PATH = Join-Path $root '.aass/browsers'
           python (Join-Path $root 'launch_aass.py') --install-only
           if ($LASTEXITCODE -ne 0) { throw 'Clean end-user runtime installation failed' }
           $runtime = Join-Path $root '.venv/Scripts/python.exe'
           & $runtime -m pip check
           if ($LASTEXITCODE -ne 0) { throw 'Clean runtime dependencies are inconsistent' }
+          & $runtime (Join-Path $root 'setup_wizard.py') --smoke-test
+          if ($LASTEXITCODE -ne 0) { throw 'Clean Windows guided setup window failed' }
           $probe = "import os, mcp, httpx, filelock, win32api; os.environ['AASS_JUDGE_API_KEY']='fixture-not-real'; from orchestration_canvas import doctor; result=doctor(); assert result['checks']['chromium']['ready'], result; print('Clean Windows runtime, isolated browser helper and Chromium verified')"
           & $runtime -c $probe
           if ($LASTEXITCODE -ne 0) { throw 'Clean Windows runtime/browser verification failed' }
@@ -90,13 +92,13 @@ jobs:
       - name: Scan exact archive and extracted payload with Microsoft Defender
         if: runner.os == 'Windows'
         shell: powershell
-        run: ./scripts/scan_release.ps1 -Archive dist/AASS-1.1.0.zip -PayloadPath "$env:AASS_SCAN_PAYLOAD"
+        run: ./scripts/scan_release.ps1 -Archive dist/AASS-1.2.0.zip -PayloadPath "$env:AASS_SCAN_PAYLOAD"
       - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         if: runner.os == 'Windows'
         with:
           name: windows-scanned-source
           path: |
-            dist/AASS-1.1.0.zip
+            dist/AASS-1.2.0.zip
             dist/SHA256SUMS
             dist/defender-scan.json
   security:
@@ -147,10 +149,10 @@ jobs:
           python scripts/check_release_evidence.py dist
       - uses: actions/attest-build-provenance@977bb373ede98d70efdf65b84cb5f73e068dcc2a # v3
         with:
-          subject-path: dist/AASS-1.1.0.zip
+          subject-path: dist/AASS-1.2.0.zip
       - name: Publish verified source and evidence together
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          tag="v1.1.0-${GITHUB_SHA::7}"
-          gh release create "$tag" --target "$GITHUB_SHA" --title "AASS 1.1.0 (${GITHUB_SHA::7})" --notes-file docs/RELEASE-NOTES.md --latest dist/AASS-1.1.0.zip dist/SHA256SUMS dist/defender-scan.json dist/dependency-audit.json dist/source-security.json dist/SBOM.json
+          tag="v1.2.0-${GITHUB_SHA::7}"
+          gh release create "$tag" --target "$GITHUB_SHA" --title "AASS 1.2.0 (${GITHUB_SHA::7})" --notes-file docs/RELEASE-NOTES.md --latest dist/AASS-1.2.0.zip dist/SHA256SUMS dist/defender-scan.json dist/dependency-audit.json dist/source-security.json dist/SBOM.json

@@ -1,30 +1,31 @@
-AASS 1.1.0 — WINDOWS
-===================
+AASS 1.2.0 — WINDOWS GUIDED SETUP
+================================
 
-Use the full release ZIP from GitHub Releases, with the scan report and checksum.
-Do not use the withdrawn diagnostic patch or restore anything from quarantine.
+1. Extract the complete release ZIP. Open the extracted folder.
+2. Double-click Install-AASS.bat. Keep Docker Desktop open.
+3. In the setup window, choose your existing private .env / text file if it
+   wasn't detected. A .env or .env.txt beside the installer is recognized.
+4. Choose your provider and a model from the available-model dropdown.
+5. Click Test connections (uses API), then open the Run a task tab.
+6. Browse to your project, enter your task, and click Run task (uses API).
 
-1. Extract all release files. Open the extracted folder.
-2. Double-click Install-AASS.bat. Leave the progress window open.
-3. After local setup, the menu opens. Choose your cloud provider if needed.
-4. Choose Check model connections when ready to make real (potentially paid) API calls.
-5. Later, double-click Start-AASS.bat and choose your project/task.
+Later, double-click Start-AASS.bat. No PowerShell commands are needed.
 
-Your existing Python 3.12, Docker Desktop, Ollama and models are reused. Missing
-system prerequisites are reported; automatic winget installation requires the
-explicit --install-prerequisites option. Windows feature changes/restarts and
-API account access/credits need the machine/account owner.
+Existing Python 3.12, Docker Desktop, Ollama and models are reused. Downloads
+show progress; completed stages can be reused after cancellation or retry.
+A cloud error stays in this window and never requires reinstalling packages.
+Your key contents stay in your private file. Only its path and model selection
+are saved. Local installation and model-list loading do not generate paid calls.
 
-Desktop .env and bounded credential folders are recognized. Key values are not
-printed or written into the release. Select the provider whose API key you intend
-to use; keys can stay in your existing private file. An API quota/auth error means
-fixing that provider/account, not reinstalling Python/Docker or the application.
+If Docker needs WSL/Virtual Machine Platform or a Windows restart, use the
+Docker / Windows help button, complete that Windows step, then retry local setup.
+Python needs its Tcl/Tk component for the window. Missing system prerequisites
+and API account access/credits still need the machine/account owner.
 
-The installer verifies release file hashes and local sandbox/browser checks.
-A checksum is not antivirus clearance. Consult the separate Defender report for
-the exact archive. Source is unsigned; no Windows signing certificate is bundled.
-Do not disable antivirus or add exclusions for AASS.
+Use the full release from https://github.com/MeetleJuice/AASS/releases/latest
+It includes a checksum, Defender report and build provenance. Source is unsigned.
+Keep Windows protection enabled. Do not use the withdrawn diagnostic patch.
 
-Instructions: docs/WINDOWS-INSTALL.md
-Review: docs/SECURITY-REVIEW.md
-Local logs/status: .aass (inside the application folder; do not share credentials).
+Detailed instructions: docs/WINDOWS-INSTALL.md
+Implementation plan: docs/SETUP-SIMPLIFICATION-PLAN.md
+Local logs/status: .aass (do not share credentials).

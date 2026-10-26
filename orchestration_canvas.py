@@ -154,11 +154,16 @@ def main(argv=None):
     args = parser.parse_args(argv)
     stage = "configuration"
     try:
+        config_error = False
         if args.credentials_file:
             load_credentials(args.credentials_file)
         if not args.no_desktop_discovery:
-            discover_api_keys(configure=False)
-        config_error = False
+            try:
+                discover_api_keys(configure=False)
+            except (OSError, ValueError):
+                if args.command != "doctor":
+                    raise
+                config_error = True
         try:
             configure_provider()
         except ValueError:

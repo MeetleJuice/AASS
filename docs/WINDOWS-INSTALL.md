@@ -1,88 +1,99 @@
-# Windows — one release, two double-click entry points
+# Windows — guided setup
 
-## Download and first launch
+Download the full **AASS 1.2.0 release ZIP** from
+[GitHub Releases](https://github.com/MeetleJuice/AASS/releases/latest). Extract all
+files, then double-click **Install-AASS.bat**. No PowerShell folder navigation is
+needed. Keep Docker Desktop open with its Linux engine running.
 
-Use the full **AASS 1.1.0 release ZIP** from the repository's GitHub Releases
-page. A published release has passed the release workflow and includes its
-Microsoft Defender scan report, SHA256SUMS, dependency audit, source scan, SBOM
-and GitHub attestation. Do not use the withdrawn connection-check patch.
+The setup window prepares local tools, shows progress, detects your private key
+file and loads a model dropdown from your provider. If more than one provider has
+keys, choose the one you intend to use. Click **Test connections (uses API)** when
+ready, then use the **Run a task** tab to browse to a separate project folder and
+describe your task. Later double-click **Start-AASS.bat** for the same window.
 
-1. Extract all release files. Do not run from inside File Explorer's ZIP viewer.
-2. Double-click **Install-AASS.bat**.
-3. Leave the window open. You see each stage, installer output, a heartbeat and
-   bounded retries. The local task menu opens when local installation completes.
-4. Choose **cloud provider** if multiple keys are available or settings conflict.
-5. Choose **check model connections** when ready to make real, potentially paid
-   API requests. These checks are separate from package installation.
-6. Later use **Start-AASS.bat**. It also verifies the release file manifest.
+## Credentials without commands
 
-A release manifest detects changed/missing runtime files; a checksum is not an
-antivirus verdict or a publisher signature. The stdlib verifier is started in
-isolated mode before application imports. Local `.venv`, `.aass`, generated
-outputs and developer files are excluded from runtime-file integrity checks.
+Your existing `.env` or Notepad `.env.txt` beside Install-AASS.bat is recognized.
+Alternatively, click **Choose existing .env / text file** and select your private
+file wherever you keep it. Only its path is saved in `.aass/credentials.json`;
+key values stay in the file. UTF-8 and BOM-marked UTF-16 text are supported.
+Use simple `KEY=value` lines. Supported names are `GEMINI_API_KEY` or
+`GOOGLE_API_KEY`, `OPENAI_API_KEY`, and `ANTHROPIC_API_KEY`.
 
-## Your existing machine
+Existing process environment bindings take precedence, followed by your explicitly
+selected file, application `.env`, application `.env.txt`, and bounded Desktop
+credential discovery. The Desktop search reads `.env` and named key/API/token/
+credential folders, at most one nested directory and 100 files. It does not scan
+unrelated Desktop projects. An unreadable explicit selection is reported, rather
+than silently replaced by another credential. Never paste keys into chat.
 
-Python 3.12, Docker Desktop with a Linux engine, and Ollama are prerequisites.
-Existing installations, models and cached image downloads are reused. Setup
-starts installed services. It prefers installed qwen3.5:9b, honours an explicit
-AASS_WORKER_MODEL and never replaces another installed model just to choose it.
-If no model is present, setup explains/downloads the selected workhorse.
+The model list uses official HTTPS endpoints. It makes no generation request;
+being listed does not guarantee model access, billing entitlement or quota.
+Choose a listed text model, then test it. Provider/model preferences are saved in
+`.aass/provider.json`, without keys. An unavailable saved model is replaced only
+by an ID actually returned in the catalog. Providers never silently switch to
+another account. The advanced generic `AASS_JUDGE_API_KEY` needs its matching
+`AASS_JUDGE_BASE_URL` so setup can identify the intended provider safely.
 
-New system prerequisites require an explicit `--install-prerequisites` option;
-there is no silent cascade of installers. Docker may require a Windows feature,
-WSL setup, virtualization support, administrator approval or a restart. Complete
-that Windows/Docker action and rerun the BAT. AASS never forces reboot, changes
-firmware, changes execution policy or disables antivirus/TLS verification.
+## Local prerequisites and progress
 
-## Credentials and provider selection
+Python 3.12 (including Tcl/Tk), Docker Desktop with a Linux engine and Ollama are
+required. Existing installations, downloaded models and cached images are reused.
+The installer starts installed services, prefers qwen3.5:9b if present and reuses
+another installed model rather than replacing it. Missing system prerequisites
+are reported. The advanced CLI `--install-prerequisites` option explicitly allows
+supported official winget installers; normal setup does not silently chain them.
 
-Automatic import reads Desktop `.env` and named key/API/token/credential folders
-(up to one nested directory, bounded to 100 files). It does not open unrelated
-Desktop projects' `.env` files. Existing process bindings take precedence. Only
-recognized settings/key names are imported; executable paths and custom API host
-approval cannot be imported from those files.
+Downloads show stages, output and a regular elapsed-time message. You can cancel
+the current operation. Completed stages can be reused on retry. Large models and
+browser downloads can take several minutes depending on your connection.
 
-Supported cloud names: OPENAI_API_KEY; GEMINI_API_KEY/GOOGLE_API_KEY;
-ANTHROPIC_API_KEY; or AASS_JUDGE_API_KEY with AASS_JUDGE_MODEL. Values stay private
-in your file/environment. The menu stores only provider/model preference in
-`.aass/provider.json`. Selecting Gemini explicitly uses the Gemini binding even
-when an OpenAI key is also present. Providers do not silently fall back to each
-other. A model override can be entered for your account's available model.
+If Docker reports **Virtual Machine Platform**, **WSL**, virtualization or restart
+requirements, use **Docker / Windows help** in AASS. Complete the Windows action
+in Docker's official instructions and restart Windows when requested. Restarting
+only Docker is insufficient. Then reopen AASS and click Prepare / check this PC.
+AASS does not force a reboot, alter firmware, change execution policy or weaken
+Windows protection.
 
-The judge receives your engineering task, changed source and test evidence. Use
-an account/provider that may receive that code. Setup makes no paid requests by
-default. A task cannot report approval without the independent judge gate.
+## Recover from a cloud error in the same window
 
-## Status and recovery
+- **401:** check the key in your private file, then Refresh detection.
+- **403:** check API permissions, region/project restrictions and model access.
+- **404:** Load models again, choose an available model and retry.
+- **429:** check provider usage, API credits/quota and rate limits before retrying.
+  App subscriptions do not necessarily include API credit.
+- **Connection/timeout:** check the service and network, then retry the check.
 
-- Local prerequisites/packages/browser/sandbox failures: setup reports the stage
-  and returns an error; fix that local prerequisite and rerun.
-- Local installation complete, no judge configuration: menu remains available;
-  choose provider/add the named key in your private file, then check connections.
-- Model API 401: rejected authentication. 403: denied permission/model access.
-  404: wrong/unavailable endpoint or model. 429: rate/quota limit; a reported
-  `insufficient_quota` specifically needs usable API credits/quota.
-- Cloud errors are configuration/account state, not a reason to reinstall Docker,
-  Python or all packages. An app subscription may not include API credit.
-- A successful local installation is distinct from live worker/cloud verification.
-  Only successful live checks mark the installation fully verified.
+A successful worker check is retained while you retry the cloud check. Changing
+provider/model invalidates its cloud result; refreshing credentials invalidates
+both. A cloud rejection never requires reinstalling Python, Docker or packages.
+No paid cloud requests run at startup or during local installation. Connection
+tests and task runs make real requests. The independent judge receives your task,
+changed source and test evidence; choose a provider you permit to receive it.
 
-AASS logs known-key-redacted stage output to `.aass/setup-<timestamp>.log` and
-writes `.aass/setup-status.json`. Logs are bounded. Only designated model-client
-subprocesses receive API key bindings; installer, package and daemon children do
-not. Share the relevant stage/status/hint, not secrets or an environment dump.
+The task tab includes a folder picker and task field. Choose a project outside
+the AASS application. A successful connection check does not approve a task;
+actual nonempty tests after the last write and independent review are required.
 
-On a reviewed in-place update, managed source is replaced, the changed dependency
-fingerprint triggers hash-verified runtime wheel reinstall, and models/credentials
-are retained. An exact known obsolete Check-Connections.bat may be retired; an
-unknown/user-modified helper is preserved and reported for review.
+## Release checks and advanced use
 
-## Security warnings
+A published release includes its exact Microsoft Defender scan report, SHA256SUMS,
+dependency/source audits, SBOM and GitHub build attestation. Publication requires
+Linux/Windows tests, an actual Windows GUI construction check, a clean runtime
+installation and Defender scans of the ZIP and installed Python/browser payload.
+A checksum proves integrity, not universal antivirus acceptance. Source remains
+unsigned. If protection reports a threat, keep it enabled and inspect Protection
+history; do not add exclusions or restore the withdrawn diagnostic patch.
 
-If Windows still reports a threat, stop and keep protection enabled. Do not add
-an exclusion, restore a quarantined patch or click through a malware warning.
-Windows Security > Virus & threat protection > Protection history can identify
-the detection. SmartScreen reputation/publisher prompts and antivirus detections
-are different mechanisms; the original warning is unclassified. This is unsigned
-source; no Authenticode certificate or universal antivirus acceptance is claimed.
+The BAT entry points verify the release manifest in isolated Python mode before
+application imports. A reviewed update retains local `.venv`, `.aass` and private
+files; a changed dependency fingerprint triggers hash-verified wheel reinstall.
+Use complete release files. Local `.env` files are Git-ignored and excluded from
+release packaging. Keep them out of engineering target projects.
+
+Advanced automation remains available through `Install-AASS.bat --help`,
+`python install_aass.py`, `python local_app.py` (legacy terminal menu) and
+`python -m orchestration_canvas`. Local stage logs/status are in `.aass`.
+Only designated model-client subprocesses receive API keys. Package, daemon,
+browser and worker-tool children have credentials stripped. Share specific
+sanitized stage/status messages rather than environment dumps or private files.

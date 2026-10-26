@@ -1,3 +1,25 @@
+# AASS 1.2.0 — guided setup and model discovery
+
+Double-click Install-AASS.bat to open one graphical setup window. It reuses local
+tools, displays progress and offers cancellation. Choose an existing private
+credential file, select a provider and pick an actual returned text model from its
+catalog. App-local .env/.env.txt and BOM-marked Notepad UTF-16 files are supported.
+Only the selected path and provider/model preferences are saved.
+
+Local installation makes no paid cloud requests. Explicit connection tests report
+authentication, access, missing-model and quota errors in the same window. A
+successful worker check is retained while retrying the cloud judge. Run a task
+using a folder picker and task field; task tests and independent approval remain
+mandatory. Advanced CLI and the legacy terminal menu remain available.
+
+Publication requires Linux/Windows verification, actual Windows GUI construction,
+hash-locked runtime/browser installation, dependency/source checks and matching
+Microsoft Defender scans of the archive and installed payload. Inspect the exact
+release's attached scan report and SHA256SUMS; source remains unsigned. Windows
+virtualization/restarts and API account billing/access still require the owner.
+
+---
+
 # AASS 1.1.0 — reviewed installation and distribution
 
 This source release replaces the withdrawn diagnostic patch distribution.

@@ -14,11 +14,12 @@ from verify_release import verify  # noqa: E402
 
 def check(directory):
     directory = Path(directory)
-    archive = directory / "AASS-1.1.0.zip"
+    archive = directory / "AASS-1.2.0.zip"
     digest = hashlib.sha256(archive.read_bytes()).hexdigest()
     scan = json.loads((directory / "defender-scan.json").read_text(encoding="utf-8-sig"))
     if (
         scan.get("passed") is not True
+        or scan.get("archive") != archive.name
         or scan.get("archive_sha256") != digest
         or scan.get("archive_exit") != 0
         or scan.get("payload_exit") != 0
@@ -26,6 +27,8 @@ def check(directory):
         or not scan.get("engine")
         or not scan.get("signature_version")
         or scan.get("microsoft_scanner_signature") != "Valid"
+        or scan.get("installed_environment_scanned") is not True
+        or scan.get("browser_bundle_scanned") is not True
     ):
         raise ValueError("No successful Microsoft Defender evidence for this exact archive")
     expected = (directory / "SHA256SUMS").read_text().strip()
@@ -58,6 +61,8 @@ def check(directory):
         if len(roots) != 1:
             raise ValueError("Unexpected archive roots")
         manifest = verify(roots[0])
+        if manifest.get("version") != "1.2.0" or roots[0].name != "AASS-1.2.0":
+            raise ValueError("Artifact version does not match the reviewed release")
         if manifest.get("dirty") or not manifest.get("source_revision"):
             raise ValueError("Cannot publish a dirty or unidentified source tree")
     if os.environ.get("GITHUB_SHA") and manifest["source_revision"] != os.environ["GITHUB_SHA"]:

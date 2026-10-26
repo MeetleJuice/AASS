@@ -217,7 +217,9 @@ def test_packaged_release_is_deterministic_and_contains_no_nested_payloads(tmp_p
         assert any(n.endswith("/RELEASE-MANIFEST.json") for n in names)
         archive.extractall(tmp_path)
     release = next(tmp_path.iterdir())
-    assert verify(release)["version"] == "1.1.0"
+    manifest = verify(release)
+    assert manifest["version"] == "1.2.0"
+    assert {"setup_api.py", "setup_controller.py", "setup_wizard.py"} <= manifest["files"].keys()
 
 
 def test_directory_junction_policy_uses_windows_detection_when_available():

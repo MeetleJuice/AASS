@@ -99,6 +99,8 @@ def provider_preferences(root=None):
 
     root = Path(root) if root is not None else Path(__file__).resolve().parent
     path = root / ".aass/provider.json"
+    if is_link(path):
+        raise ValueError("Invalid provider settings file")
     if not path.exists():
         return {}
     if path.is_symlink() or path.stat().st_size > 4096:
@@ -133,3 +135,37 @@ def save_provider_preferences(service, model="", root=None):
 def is_link(path):
     """Windows directory junctions require the same containment policy as symlinks."""
     return path.is_symlink() or (hasattr(path, "is_junction") and path.is_junction())
+
+
+def selected_credentials_file(root=None):
+    """Read a user-chosen path, never a copy of its credential contents."""
+    import json
+    from pathlib import Path
+
+    root = Path(root) if root is not None else Path(__file__).resolve().parent
+    binding = root / ".aass/credentials.json"
+    if is_link(binding):
+        raise ValueError("Invalid credential-file selection; choose your file again")
+    if not binding.exists():
+        return None
+    if is_link(binding) or binding.stat().st_size > 8192:
+        raise ValueError("Invalid credential-file selection; choose your file again")
+    data = json.loads(binding.read_text(encoding="utf-8"))
+    if not isinstance(data, dict) or set(data) != {"path"} or not isinstance(data["path"], str):
+        raise ValueError("Invalid credential-file selection; choose your file again")
+    path = Path(data["path"])
+    if not path.is_absolute():
+        raise ValueError("Choose an absolute credential-file path")
+    return path
+
+
+def save_credentials_file(path, root=None):
+    from pathlib import Path
+
+    from telemetry import atomic_json
+
+    path = Path(path).expanduser().absolute()
+    if is_link(path) or not path.is_file() or path.stat().st_size > 64 * 1024:
+        raise ValueError("Choose a regular .env or text file no larger than 64 KiB")
+    root = Path(root) if root is not None else Path(__file__).resolve().parent
+    atomic_json(root / ".aass/credentials.json", {"path": str(path)})

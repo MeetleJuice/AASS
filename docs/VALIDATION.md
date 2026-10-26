@@ -1,3 +1,27 @@
+# Guided setup 1.2.0 verification
+
+Local integration run: **240 passed, 2 Windows-only skips**. This includes real
+Docker sandbox isolation, PostgreSQL MCP and Chromium checks, model-catalog HTTP
+fixtures, credential-file precedence/Notepad encodings, cancellation, and GUI
+recovery tests. Ruff and dependency consistency passed. Runtime advisory audit
+reported no known vulnerabilities; Bandit reported no medium/high findings.
+
+The actual Tk window was constructed under an isolated X display. A simulated
+provider exercised asynchronous key metadata, model selection, worker success,
+cloud HTTP404 and successful cloud-only retry. No paid provider request was made.
+A full extracted runtime installed its locked wheels and generated its architecture
+with a moved private credential-file selection; the cloud configuration error
+remained recoverable. Extracted source imports before dependencies are installed.
+
+Windows-specific process tracking, native Tk construction, clean runtime/browser
+installation and Defender scans of ZIP/payload are publication gates in
+`.github/workflows/verify.yml`. The report attached to each published release
+records the exact archive tested. Local or simulated checks do not authenticate
+a user's API key, model access or billing quota; use the setup window's explicit
+connection test on that machine.
+
+---
+
 # Validation evidence
 
 Validated in the supplied Linux cloud workspace on 2026-10-26 using Python 3.12.14,

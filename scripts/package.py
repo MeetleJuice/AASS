@@ -27,6 +27,9 @@ FILES = [
     "INSTALL-FIRST.txt",
     "install_aass.py",
     "local_app.py",
+    "setup_api.py",
+    "setup_controller.py",
+    "setup_wizard.py",
     "launch-aass.sh",
     "circuit_breaker.py",
     "worker_agent.py",
@@ -43,6 +46,7 @@ FILES = [
     "docs/REMEDIATION-PLAN.md",
     "docs/VALIDATION.md",
     "docs/ARCHITECTURE.md",
+    "docs/SETUP-SIMPLIFICATION-PLAN.md",
 ]
 
 

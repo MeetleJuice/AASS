@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "aass-runtime"
-version = "1.1.0"
+version = "1.2.0"
 description = "Bounded dual-loop autonomous engineering runtime"
 requires-python = ">=3.12"
 dependencies = ["filelock>=4.2.1,<5", "httpx>=0.28,<1", "mcp>=1.26,<2", "playwright>=1.58,<2"]
@@ -17,7 +17,7 @@ dev = ["pytest>=8,<10", "pytest-asyncio>=1,<2", "ruff>=0.12,<1"]
 aass = "orchestration_canvas:main"
 
 [tool.setuptools]
-py-modules = ["initialize_aass", "circuit_breaker", "worker_agent", "stall_detector", "judge_evaluator", "orchestration_canvas", "crdal_supervisor", "telemetry", "settings", "install_aass", "launch_aass", "local_app"]
+py-modules = ["initialize_aass", "circuit_breaker", "worker_agent", "stall_detector", "judge_evaluator", "orchestration_canvas", "crdal_supervisor", "telemetry", "settings", "install_aass", "launch_aass", "local_app", "setup_api", "setup_controller", "setup_wizard"]
 
 [tool.setuptools.packages.find]
 include = ["tools*", "sandboxes*"]

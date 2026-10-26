@@ -382,7 +382,7 @@ class Installer:
                     "LOCAL INSTALLATION COMPLETE. No usable independent judge configuration was found."
                 )
                 self.say(
-                    "Your private .env needs OPENAI_API_KEY, GEMINI_API_KEY or ANTHROPIC_API_KEY; or AASS_JUDGE_API_KEY with AASS_JUDGE_MODEL. Keep values private. Use Start AASS > Choose cloud provider and Check model connections; no reinstall is required."
+                    "Your private .env needs OPENAI_API_KEY, GEMINI_API_KEY or ANTHROPIC_API_KEY; or AASS_JUDGE_API_KEY with AASS_JUDGE_MODEL. Keep values private. Choose your private file and provider in the setup window, then Test connections; no reinstall is required."
                 )
             else:
                 self.say(
@@ -395,7 +395,7 @@ class Installer:
                 "Installation checks passed. Live model verification is separate from installation."
             )
             self.say(
-                "Local prerequisites verified. Use Start-AASS.bat > Check model connections to verify generation and cloud access."
+                "Local prerequisites verified. Use Test connections in the setup window to verify generation and cloud access."
             )
             return 0
         self.say(
@@ -411,7 +411,7 @@ class Installer:
         if live_code:
             self.status("installed_cloud_unverified", checks=checks)
             self.say(
-                "AASS is installed. A model connection was rejected or unavailable; see the service/status above. Fix that account/service in the Start menu, then retry the connection check. Do not reinstall packages."
+                "AASS is installed. A model connection was rejected or unavailable; see the service/status above. Fix that account/service in the setup window, then retry the connection check. Do not reinstall packages."
             )
             return 0
         self.status("ready", checks=checks)
@@ -457,7 +457,13 @@ def main():
     args = parser.parse_args()
     if args.sandbox_smoke:
         return sandbox_smoke()
-    discover_api_keys(configure=False)
+    try:
+        discover_api_keys(configure=False)
+    except (OSError, ValueError):
+        print(
+            "Private credential-file selection needs attention. Local installation will continue; choose your file again in the setup window.",
+            flush=True,
+        )
     installer = Installer(install_prerequisites=args.install_prerequisites)
     acquired = False
     try:

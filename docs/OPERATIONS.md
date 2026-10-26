@@ -27,9 +27,11 @@ userinfo/query/path; local loopback HTTP is allowed. Vision actions require a
 vision-capable selected worker.
 
 Environment bindings and recognised private file settings are imported without
-executing shell text. Automatic discovery is limited as documented in the Windows
-guide. For another private file use the CLI's `--credentials-file` option. Do not
-store real keys in the runtime/target checkout. Example files contain names only.
+executing shell text. Fixed app-local .env/.env.txt files are supported before the bounded Desktop
+search. Automatic discovery is limited as documented in the Windows
+guide. For another private file use the window's credential-file picker or the CLI's
+`--credentials-file` option. App-local private files are ignored by Git and
+excluded from releases. Never put real keys in target projects or commits.
 
 Official judge hosts are api.openai.com, generativelanguage.googleapis.com and
 api.anthropic.com. HTTPS and provider-adapter compatibility are validated before
@@ -39,10 +41,11 @@ That destination allowlist cannot be imported from Desktop files. Never approve
 a host you do not intend to receive your key and source. AASS_JUDGE_PROVIDER is
 `anthropic` for Anthropic Messages and `openai` for OpenAI-compatible endpoints.
 
-The menu's explicit provider preference is stored without a key. Supported
-services are auto/openai/gemini/anthropic. Default model names are conveniences,
-not evidence of availability on an account; check your provider and override the
-model in the menu. Provider conflicts fail before credential transmission.
+The window stores a provider/model preference without a key and loads model IDs
+from official provider catalogs. Metadata lookup does not establish generation
+access or quota; Test connections performs actual requests. The advanced CLI
+supports auto/openai/gemini/anthropic and explicit model overrides. Provider
+conflicts fail before credential transmission. GUI startup never makes paid calls.
 
 ## Native CLI
 From an installed Windows folder use `.venv/Scripts/python.exe -m orchestration_canvas`;
