@@ -1,5 +1,21 @@
 # Guided setup 1.2.0 verification
 
+Observed published release: [v1.2.0-9124d52](https://github.com/MeetleJuice/AASS/releases/tag/v1.2.0-9124d52),
+from source `9124d5282c9672183dab304e7ee39b676f674e2b`.
+[Workflow 40371471115](https://github.com/MeetleJuice/AASS/actions/runs/40371471115)
+passed Linux, Windows, security and publication jobs. The Windows job passed
+regression tests (including owned-process tracking), the actual BAT entry point,
+clean runtime/Tk window/Chromium checks and Defender archive/payload scans.
+The attached report records zero detections, engine1.1.26090.9 and
+signatures1.461.140.0. Installed environment and browser scans are both recorded.
+
+The public ZIP and evidence were downloaded independently after publication.
+The evidence validator passed; its bytes match the clean local deterministic
+build. SHA-256: `9a064102fae2af4be92ed1a44c379a5b93a1c0409dc0f92dda4f197d0034ac34`.
+The GitHub latest-release link resolves to this guided setup release. This is
+observed evidence for this artifact, not a guarantee for every antivirus engine
+or a validation of a user's cloud account.
+
 Local integration run: **240 passed, 2 Windows-only skips**. This includes real
 Docker sandbox isolation, PostgreSQL MCP and Chromium checks, model-catalog HTTP
 fixtures, credential-file precedence/Notepad encodings, cancellation, and GUI

@@ -56,3 +56,14 @@ The application cannot enable firmware virtualization or reboot Windows on the
 owner's behalf. It cannot create API billing entitlement or guarantee every
 antivirus engine accepts unsigned source. Those cases need a clear next action,
 not bypasses, repeated package installation or a misleading success indicator.
+
+## Completion evidence
+
+Implemented in source9124d52 and published as AASS1.2.0. Local integration tests,
+actual Tk credential/catalog/404-retry flow, fresh extracted package installation,
+Windows regressions/native GUI/browser installation and Defender ZIP/payload
+scans passed. Downloaded public assets pass the matching evidence validator and
+reproduce the local source archive byte-for-byte. See [validation](VALIDATION.md)
+for the exact run, release and checksum. The remaining machine/account actions
+are selecting an existing private file if needed and explicitly testing real
+model access; setup makes no paid request before that action.
