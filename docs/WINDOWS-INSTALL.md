@@ -70,3 +70,17 @@ For unattended development checks, `python install_aass.py --skip-live` explicit
 skips paid model verification and records `installed_live_unverified`. It does not
 claim full readiness. `AASS_PYTHON` may select a known Python 3.12 executable for
 the batch bootstrap in automated Windows tests.
+
+## A model API rejects the final connection check
+An HTTP error after package/browser/sandbox checks means the installation has
+reached a model service, which rejected a request. Credential discovery proves
+presence, not successful authentication or available account credit.
+
+Double-click **Check-Connections.bat** in the installed application folder. It
+prints whether `ollama_worker` or `cloud_judge` failed, the HTTP status, API hostname,
+a recognized provider error code when available, and a specific next step.
+It never prints raw API messages, authorization headers or complete request URLs.
+For example, HTTP 401 indicates rejected authentication, 404 an unavailable model
+or endpoint, and 429 a rate/quota limit; `insufficient_quota` specifically indicates
+account credit/quota. Do not replace keys, change models or reinstall services
+until the reported service/status identifies the actual failing prerequisite.

@@ -95,3 +95,17 @@ live-review failure gates, and the installer's real Docker isolation test.
 job now checks the platform-specific coordinator tests and invokes the actual
 batch entry point with `--help`. That job has not been observed running here;
 full Windows Desktop installation still needs confirmation on the destination.
+
+## Live-connection diagnostics update
+A user-provided Windows run confirmed package installation, Chromium downloads,
+local Ollama discovery, Docker sandbox isolation and all doctor checks passed.
+The final live check returned HTTPStatusError; its service/status were hidden by
+the previous generic handler, so live generation and cloud approval remain
+unconfirmed from that log.
+
+The CLI now separates local-worker and cloud-judge stages and reports safe HTTP
+status/host metadata plus an allowlisted provider code. Tests verify raw request
+credentials, response messages and exception bodies are not echoed. The updated
+full Linux suite passed **85 tests, 0 failures, 0 skipped** (28.90 seconds).
+`Check-Connections.bat` retries only live connections; no package reinstall or
+model/image download is needed for that diagnostic.

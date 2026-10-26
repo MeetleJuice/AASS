@@ -16,6 +16,7 @@ FILES = [
     "Launch-AASS.cmd",
     "Install-AASS.bat",
     "Start-AASS.bat",
+    "Check-Connections.bat",
     "INSTALL-FIRST.txt",
     "install_aass.py",
     "local_app.py",

@@ -82,6 +82,39 @@ def make_judge():
     )
 
 
+def failure_report(error, stage):
+    report = {"status": "failed", "stage": stage, "error_type": type(error).__name__}
+    if isinstance(error, httpx.HTTPStatusError):
+        status = error.response.status_code
+        report.update(http_status=status, api_host=error.request.url.host)
+        code = getattr(error, "provider_code", None)
+        if code:
+            report["provider_code"] = code
+        hints = {
+            400: "The API rejected the request format or parameters. Check the selected model and provider endpoint.",
+            401: "The API rejected authentication. Check the configured key in your private credentials file.",
+            402: "The provider requires payment or available account credit.",
+            403: "The provider denied access. Check key permissions, model access and account restrictions.",
+            404: "The requested endpoint or model was not found. Check the provider URL and model name.",
+            429: "The provider reported a rate or quota limit. Check API usage, credits and account limits.",
+        }
+        report["hint"] = hints.get(
+            status,
+            "The model service returned an HTTP error. Check that service's status and configuration.",
+        )
+        if code in ("insufficient_quota", "billing_hard_limit_reached"):
+            report["hint"] = (
+                "The API account has no usable quota or credit. Check provider billing; an app subscription may not include API credit."
+            )
+    elif isinstance(error, httpx.TransportError):
+        report["hint"] = (
+            "The selected service could not be reached or timed out. Check its connection and startup status."
+        )
+    else:
+        report["hint"] = "Check configuration with aass doctor and docs/OPERATIONS.md."
+    return report
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -108,6 +141,7 @@ def main(argv=None):
     if not args.no_desktop_discovery:
         discover_api_keys()
     configure_provider()
+    stage = args.command
     try:
         if args.command == "doctor":
             report = doctor()
@@ -126,12 +160,16 @@ def main(argv=None):
                 os.environ.get("OLLAMA_HOST", "http://127.0.0.1:11434"),
                 select_worker(verify_ollama()),
             )
+            stage = "ollama_worker"
+            print("[AASS] Testing local worker generation...", flush=True)
             action = worker.step(
                 "Return a map action to inspect the repository.",
                 {},
                 "Protocol readiness check",
                 budget,
             )
+            print("[AASS] Local worker responded. Testing independent cloud judge...", flush=True)
+            stage = "cloud_judge"
             verdict = make_judge().evaluate(
                 "Validate worker returned a map action", {"worker_action": action}, budget
             )
@@ -163,17 +201,8 @@ def main(argv=None):
         print(json.dumps(report, indent=2))
         return 0 if report["status"] == "approved" else 2
     except (ValueError, OSError, httpx.HTTPError, RuntimeError) as error:
-        # No exception bodies: upstream responses can contain keys or task contents.
-        print(
-            json.dumps(
-                {
-                    "status": "failed",
-                    "error_type": type(error).__name__,
-                    "hint": "Check configuration with aass doctor and docs/OPERATIONS.md",
-                }
-            ),
-            file=sys.stderr,
-        )
+        # No raw exception bodies, headers or URLs: they can contain credentials.
+        print(json.dumps(failure_report(error, stage), indent=2), file=sys.stderr)
         return 2
 
 

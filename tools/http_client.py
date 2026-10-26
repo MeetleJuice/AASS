@@ -2,15 +2,45 @@
 
 import json
 
+import httpx
+
 MAX_RESPONSE_BYTES = 256 * 1024
 
 
 def post_json(client, url, *, payload, headers=None):
     with client.stream("POST", url, json=payload, headers=headers) as response:
-        response.raise_for_status()
         data = bytearray()
         for chunk in response.iter_bytes():
             if len(data) + len(chunk) > MAX_RESPONSE_BYTES:
                 raise ValueError("Model response exceeds hard size limit")
             data.extend(chunk)
+        try:
+            response.raise_for_status()
+        except httpx.HTTPStatusError as error:
+            # Report only known machine-readable codes, never arbitrary API messages.
+            try:
+                detail = json.loads(data).get("error", {})
+            except (ValueError, AttributeError):
+                detail = {}
+            known = {
+                "invalid_api_key",
+                "insufficient_quota",
+                "rate_limit_exceeded",
+                "billing_hard_limit_reached",
+                "model_not_found",
+                "permission_denied",
+                "invalid_request_error",
+                "context_length_exceeded",
+                "NOT_FOUND",
+                "RESOURCE_EXHAUSTED",
+                "PERMISSION_DENIED",
+                "UNAUTHENTICATED",
+            }
+            if isinstance(detail, dict):
+                for field in ("code", "type", "status"):
+                    code = detail.get(field)
+                    if isinstance(code, str) and code in known:
+                        error.provider_code = code
+                        break
+            raise
     return json.loads(data)
