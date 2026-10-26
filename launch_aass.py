@@ -5,8 +5,36 @@ import os
 import shutil
 import subprocess
 import sys
+import time
 import venv
 from pathlib import Path
+
+
+def setup_step(label, command, *, cwd=None, progress_interval=15):
+    """Inherit console output and show liveness while an installer is quiet."""
+    print(f"\n[AASS] {label}", flush=True)
+    started = time.monotonic()
+    process = subprocess.Popen(command, cwd=cwd)
+    try:
+        while True:
+            try:
+                code = process.wait(timeout=progress_interval)
+                break
+            except subprocess.TimeoutExpired:
+                elapsed = int(time.monotonic() - started)
+                print(f"[AASS] Still running: {label} ({elapsed}s elapsed)", flush=True)
+    except BaseException:
+        if process.poll() is None:
+            process.terminate()
+            try:
+                process.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                process.kill()
+                process.wait()
+        raise
+    if code:
+        raise subprocess.CalledProcessError(code, command)
+    print(f"[AASS] Finished: {label}", flush=True)
 
 
 def main():
@@ -19,7 +47,10 @@ def main():
     parser.add_argument("--install-only", action="store_true")
     parser.add_argument("--integration", action="store_true")
     args, remaining = parser.parse_known_args()
+    print(f"[AASS] Python: {sys.executable}", flush=True)
+    print(f"[AASS] Project: {root}", flush=True)
     if not executable.exists():
+        print("[AASS] Creating virtual environment...", flush=True)
         venv.EnvBuilder(with_pip=True).create(environment)
     marker = environment / ".aass-installed"
     import hashlib
@@ -27,24 +58,41 @@ def main():
     fingerprint = hashlib.sha256(
         (root / "requirements.lock").read_bytes() + (root / "pyproject.toml").read_bytes()
     ).hexdigest()
+    pip = [
+        str(executable),
+        "-u",
+        "-m",
+        "pip",
+        "--disable-pip-version-check",
+        "--no-input",
+        "--timeout",
+        "20",
+        "--retries",
+        "1",
+        "--verbose",
+    ]
     if not marker.exists() or marker.read_text() != fingerprint:
-        subprocess.run(
-            [str(executable), "-m", "pip", "install", "-r", str(root / "requirements.lock")],
+        setup_step(
+            "Installing locked Python dependencies",
+            [*pip, "install", "--prefer-binary", "-r", str(root / "requirements.lock")],
             cwd=root,
-            check=True,
         )
-        subprocess.run(
-            [str(executable), "-m", "pip", "install", "--no-deps", "-e", "."], cwd=root, check=True
+        setup_step(
+            "Installing AASS application", [*pip, "install", "--no-deps", "-e", "."], cwd=root
         )
         # Prefer an already installed verified system Chromium over a second download.
         if not (os.environ.get("AASS_CHROMIUM_EXECUTABLE") or shutil.which("chromium")):
-            subprocess.run([str(executable), "-m", "playwright", "install", "chromium"], check=True)
+            setup_step(
+                "Installing Chromium browser",
+                [str(executable), "-u", "-m", "playwright", "install", "chromium"],
+                cwd=root,
+            )
         marker.write_text(fingerprint)
     if not (root / "generated/architecture_spec.json").exists():
-        subprocess.run(
-            [str(executable), str(root / "initialize_aass.py"), "--root", str(root)],
+        setup_step(
+            "Initializing architecture and local model discovery",
+            [str(executable), "-u", str(root / "initialize_aass.py"), "--root", str(root)],
             cwd=root,
-            check=True,
         )
     if args.install_only:
         return 0
@@ -62,4 +110,15 @@ def main():
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    try:
+        raise SystemExit(main())
+    except KeyboardInterrupt:
+        print("\n[AASS] Setup cancelled. Run the launcher again to resume.", flush=True)
+        raise SystemExit(130) from None
+    except subprocess.CalledProcessError as error:
+        print(
+            f"\n[AASS] A setup step failed (exit {error.returncode}). See the output above.",
+            file=sys.stderr,
+            flush=True,
+        )
+        raise SystemExit(error.returncode) from None

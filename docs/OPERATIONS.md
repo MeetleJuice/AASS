@@ -164,3 +164,23 @@ cannot substitute for it. Linux was validated in the cloud. Windows/macOS launch
 paths are implemented but require verification on those operating systems.
 No auto-push, remote deployment, public endpoint or unattended OS service is
 created. Production invocation is the native bounded CLI under your own account.
+
+## Windows setup pauses during Python installation
+If the traceback points to the launcher's pip subprocess and
+`.venv/Scripts/python.exe -m pip --version` works, Python and the virtual
+environment are installed. The remaining dependency request needs diagnosis;
+reinstalling Docker or Ollama does not resolve that stage.
+
+The launcher prints stage labels, inherited installer output and a liveness
+message every 15 seconds. Pip uses verbose output, no interactive prompts,
+20-second socket timeouts and one network retry. A heartbeat indicates the
+child is still running; it does not prove download progress. Cancellation stops
+the active installer and allows a later retry. Package and TLS verification stay
+enabled. Pip's official option and logging documentation:
+https://pip.pypa.io/en/stable/cli/pip/
+
+Use `.venv/Scripts/python.exe -m pip --version` to verify pip independently. If
+verbose output reports a proxy, TLS, registry or wheel compatibility error,
+resolve that specific error; do not disable TLS checks, delete working models,
+or repeatedly restart the full prerequisite installer. Share only the relevant
+error with credentials removed, not full environment or credential files.
