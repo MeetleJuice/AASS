@@ -3,7 +3,6 @@
 import argparse
 import json
 import os
-import queue
 import re
 import signal
 import subprocess
@@ -14,7 +13,6 @@ import xml.etree.ElementTree as ET
 from pathlib import Path
 
 MAX_LOG = 2 * 1024 * 1024
-MAX_QUEUE = 64
 
 
 def _safe_test_name(value):
@@ -129,9 +127,7 @@ def main(argv=None):
         "--junitxml=" + args.junitxml,
         *args.tests,
     ]
-    stdout_queue = queue.Queue(maxsize=MAX_QUEUE)
-    reader_done, writer_done, spawn_done = threading.Event(), threading.Event(), threading.Event()
-    writer_stop = threading.Event()
+    reader_done, spawn_done = threading.Event(), threading.Event()
     state = {"dropped_stdout_bytes": 0, "output_bytes": 0}
     processes = []
     junit_path = Path(args.junitxml).absolute()
@@ -147,35 +143,6 @@ def main(argv=None):
         args.collection_timeout if args.collection_timeout is not None else max(20, args.timeout)
     )
 
-    def offer(chunk):
-        try:
-            stdout_queue.put_nowait(chunk)
-        except queue.Full:
-            state["dropped_stdout_bytes"] += len(chunk)
-
-    def writer():
-        descriptor = None
-        try:
-            # Raw descriptor writes do not hold Python's stdout buffer lock.
-            # This thread alone may block; the deadline monitor never waits for it.
-            descriptor = os.dup(sys.stdout.fileno())
-            while not writer_stop.is_set() or not stdout_queue.empty():
-                try:
-                    data = stdout_queue.get(timeout=0.05)
-                except queue.Empty:
-                    continue
-                while data:
-                    written = os.write(descriptor, data)
-                    if not written:
-                        raise OSError("No output progress")
-                    data = data[written:]
-        except (OSError, ValueError):
-            state["stdout_unavailable"] = True
-        finally:
-            if descriptor is not None:
-                os.close(descriptor)
-            writer_done.set()
-
     def reader(process):
         try:
             with output_path.open("w+b", buffering=0) as log:
@@ -188,8 +155,10 @@ def main(argv=None):
                         log.truncate()
                     log.write(chunk)
                     state["output_bytes"] += len(chunk)
-                    if not writer_done.is_set():
-                        offer(chunk)
+                    # Retain output on disk, not a potentially blocked console.
+                    # In particular, do not leave a Windows CRT writer thread
+                    # holding a descriptor lock when the monitor must exit.
+                    state["dropped_stdout_bytes"] += len(chunk)
         except (OSError, ValueError) as error:
             state["capture_error"] = type(error).__name__
         finally:
@@ -212,7 +181,6 @@ def main(argv=None):
         finally:
             spawn_done.set()
 
-    threading.Thread(target=writer, daemon=True).start()
     threading.Thread(target=spawn, daemon=True).start()
     exited_at = None
 
@@ -240,34 +208,21 @@ def main(argv=None):
         if wrapper_code:
             _stop(processes[0] if processes else None)
         if timed_out:
-            offer(
-                (
-                    "::error title=Windows test timeout::Last started check at timeout: "
-                    + current
-                    + "\n"
-                ).encode()
-            )
+            message = "Windows test timeout: Last started check at timeout: " + current
         elif phase == "output_not_closed" and not wrapper_code:
-            offer(
-                b"::notice title=Windows output capture::Pytest exited successfully with a complete passing JUnit report; an inherited stdout pipe remained open after bounded drain. Remaining child shutdown was not observed.\n"
-            )
-        elif wrapper_code and phase != "completed":
-            offer(
-                (
-                    "::error title=Windows test monitor::Monitoring failed during "
-                    + phase
-                    + "; child exit "
-                    + str(child_code)
-                    + "\n"
-                ).encode()
+            message = (
+                "Pytest exited successfully with a complete passing JUnit report; "
+                "an inherited stdout pipe remained open. Remaining child shutdown was not observed."
             )
         else:
-            offer(
-                f"\nCI Python process exit: {child_code} ({hex(child_code & 0xFFFFFFFF)})\n".encode()
-            )
-        writer_stop.set()
-        writer_done.wait(timeout=0.2)
+            message = f"CI Python process exit: {child_code}; monitor phase: {phase}"
         receipt(child_code, phase, wrapper_code=wrapper_code, timed_out=timed_out)
+        # This process has written nothing to stdout before this bounded result.
+        # Keep it below the smallest Windows anonymous-pipe buffer (4 KiB).
+        try:
+            os.write(sys.stdout.fileno(), (message[:1000] + "\n").encode("utf-8"))
+        except (OSError, ValueError):
+            pass
         return wrapper_code
 
     while True:
@@ -302,6 +257,6 @@ def main(argv=None):
 
 
 if __name__ == "__main__":
-    # A blocked daemon log writer must not hold interpreter shutdown on stdout.
+    # A descendant holding captured output must not delay interpreter shutdown.
     # All authoritative outcome evidence is already atomically saved by main().
     os._exit(main())
