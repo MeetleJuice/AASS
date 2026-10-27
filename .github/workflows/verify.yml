@@ -109,23 +109,28 @@ jobs:
           from desktop_integration import create_shortcut
           root, desktop = (Path(value).resolve() for value in sys.argv[1:3])
           link = create_shortcut(root, desktop=desktop)
-          shortcut = win32com.client.Dispatch('WScript.Shell').CreateShortcut(str(link))
-          expected_target = Path(sys._base_executable).with_name('pythonw.exe').resolve()
-          assert Path(shortcut.TargetPath).resolve() == expected_target
-          assert Path(shortcut.WorkingDirectory).resolve() == root
-          assert str(root / 'desktop_launcher.py') in shortcut.Arguments
-          assert '--root' in shortcut.Arguments
-          assert Path(shortcut.IconLocation.rsplit(',', 1)[0].strip('"')).resolve() == root / 'assets/aass.ico'
-          user32 = ctypes.WinDLL('user32', use_last_error=True)
-          user32.LoadImageW.argtypes = [ctypes.c_void_p, ctypes.c_wchar_p, ctypes.c_uint, ctypes.c_int, ctypes.c_int, ctypes.c_uint]
-          user32.LoadImageW.restype = ctypes.c_void_p
-          user32.DestroyIcon.argtypes = [ctypes.c_void_p]
-          user32.DestroyIcon.restype = ctypes.c_int
-          icon = user32.LoadImageW(None, str(root / 'assets/aass.ico'), 1, 32, 32, 0x10)
-          assert icon, 'Windows could not decode the custom ICO resource'
-          assert user32.DestroyIcon(icon)
-          assert create_shortcut(root, desktop=desktop) == link
-          print('Clean Windows custom-icon shortcut created and inspected without touching the real Desktop')
+          import pythoncom
+          pythoncom.CoInitialize()
+          try:
+              shortcut = win32com.client.Dispatch('WScript.Shell').CreateShortcut(str(link))
+              expected_target = Path(sys._base_executable).with_name('pythonw.exe').resolve()
+              assert Path(shortcut.TargetPath).resolve() == expected_target
+              assert Path(shortcut.WorkingDirectory).resolve() == root
+              assert str(root / 'desktop_launcher.py') in shortcut.Arguments
+              assert '--root' in shortcut.Arguments
+              assert Path(shortcut.IconLocation.rsplit(',', 1)[0].strip('"')).resolve() == root / 'assets/aass.ico'
+              user32 = ctypes.WinDLL('user32', use_last_error=True)
+              user32.LoadImageW.argtypes = [ctypes.c_void_p, ctypes.c_wchar_p, ctypes.c_uint, ctypes.c_int, ctypes.c_int, ctypes.c_uint]
+              user32.LoadImageW.restype = ctypes.c_void_p
+              user32.DestroyIcon.argtypes = [ctypes.c_void_p]
+              user32.DestroyIcon.restype = ctypes.c_int
+              icon = user32.LoadImageW(None, str(root / 'assets/aass.ico'), 1, 32, 32, 0x10)
+              assert icon, 'Windows could not decode the custom ICO resource'
+              assert user32.DestroyIcon(icon)
+              assert create_shortcut(root, desktop=desktop) == link
+              print('Clean Windows custom-icon shortcut created and inspected without touching the real Desktop')
+          finally:
+              pythoncom.CoUninitialize()
           '@
           & $runtime -c $shortcutProbe $root $desktop
           if ($LASTEXITCODE -ne 0) { throw 'Clean Windows desktop shortcut verification failed' }
