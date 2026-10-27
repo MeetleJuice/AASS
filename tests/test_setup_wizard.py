@@ -1,8 +1,11 @@
 """Headless user-flow checks; release CI also constructs the real Windows Tk UI."""
 
 import json
+import os
 import sys
+import threading
 import time
+from contextlib import contextmanager
 from types import SimpleNamespace
 
 import pytest
@@ -84,6 +87,8 @@ class Window(Widget):
     def destroy(self):
         self.destroyed = True
 
+    update_idletasks = update = Widget.pack
+
 
 class FakeController:
     def __init__(self, root, *, runtime=True):
@@ -147,7 +152,13 @@ def wizard_factory(tmp_path, monkeypatch):
             )
         }
     )
-    tk = SimpleNamespace(ttk=ttk, StringVar=Variable, Text=Widget, Canvas=Widget)
+    tk = SimpleNamespace(
+        ttk=ttk,
+        StringVar=Variable,
+        Text=Widget,
+        Canvas=Widget,
+        TclError=type("TclError", (Exception,), {}),
+    )
     monkeypatch.setitem(sys.modules, "tkinter", tk)
 
     def make(*, runtime=True, smoke=True, auto_install=False):
@@ -375,3 +386,304 @@ def test_cloud_check_log_identifies_selected_model_and_route(wizard_factory):
     assert "API: generateContent" in app.log.text
     assert "code: NOT_FOUND" in app.log.text
     assert app.worker_passed and not app.cloud_passed
+
+
+class SafeLifecycleError(RuntimeError):
+    def __init__(self, code, message):
+        self.code, self.message = code, message
+        super().__init__(message)
+
+
+def lifecycle_module(monkeypatch, prepare, launch=None):
+    module = SimpleNamespace(
+        LifecycleError=SafeLifecycleError,
+        prepare_update=prepare,
+        launch_update=launch or (lambda *_args, **_kwargs: None),
+    )
+    monkeypatch.setitem(sys.modules, "app_lifecycle", module)
+    return module
+
+
+def installed_release(app):
+    (app.root / "RELEASE-MANIFEST.json").write_text(
+        json.dumps({"version": "1.3.0", "source_revision": "a" * 40})
+    )
+
+
+def test_source_version_display_does_not_depend_on_old_installed_metadata(tmp_path):
+    (tmp_path / "pyproject.toml").write_text('[project]\nversion="1.3.0"\n')
+    assert gui.application_version(tmp_path) == "1.3.0"
+    (tmp_path / "pyproject.toml").write_text('[project]\nversion="unsafe\\nversion"\n')
+    assert gui.application_version(tmp_path) == "development"
+
+
+def test_checkout_update_gives_install_action_without_network(wizard_factory, monkeypatch):
+    app, controller, window = wizard_factory()
+    lifecycle_module(monkeypatch, lambda *_args, **_kwargs: pytest.fail("unexpected network check"))
+    app.update_application()
+    assert "Install-AASS.bat" in app.notice.get()
+    assert not app.busy and not window.destroyed
+    assert not controller.calls
+
+
+def test_opening_window_does_not_check_or_download_updates(wizard_factory, monkeypatch):
+    lifecycle_module(monkeypatch, lambda *_args, **_kwargs: pytest.fail("unexpected update"))
+    app, _, window = wizard_factory(smoke=False)
+    assert app.version == "development"
+    assert not app.busy and not window.destroyed
+    assert {callback.__name__ for callback in window.callbacks.values()} == {"poll", "refresh"}
+
+
+def test_latest_release_leaves_existing_settings_and_connections_usable(
+    wizard_factory, monkeypatch
+):
+    app, controller, window = wizard_factory()
+    installed_release(app)
+    preferences = app.root / ".aass/provider.json"
+    preferences.parent.mkdir()
+    preferences.write_text('{"service":"gemini","model":"chosen"}')
+    before = preferences.read_bytes()
+    app.worker_passed = app.cloud_passed = True
+    lifecycle_module(
+        monkeypatch,
+        lambda *_args, **_kwargs: {"status": "ok", "changed": False, "version": "1.3.0"},
+        lambda *_args, **_kwargs: pytest.fail("up-to-date app must not restart"),
+    )
+    app.update_application()
+    settle(app)
+    assert "up to date" in app.update_status.get()
+    assert preferences.read_bytes() == before
+    assert app.worker_passed and app.cloud_passed
+    assert not controller.calls and not window.destroyed
+
+
+@pytest.mark.parametrize(
+    "code,message",
+    [
+        ("offline", "GitHub could not be reached."),
+        ("verification_failed", "Release verification failed."),
+    ],
+)
+def test_update_download_or_verification_failure_keeps_current_window_usable(
+    wizard_factory, monkeypatch, code, message
+):
+    app, controller, window = wizard_factory()
+    installed_release(app)
+
+    def fail(*_args, **_kwargs):
+        raise SafeLifecycleError(code, message)
+
+    lifecycle_module(monkeypatch, fail)
+    app.update_application()
+    settle(app)
+    assert message in app.notice.get()
+    assert "current app is still available" in app.update_status.get()
+    assert not window.destroyed and not app.busy
+    assert all(button.options["state"] == "normal" for button in app.buttons)
+    assert not controller.calls
+
+
+def test_verified_update_handoff_releases_gui_without_cancelling_detached_helper(
+    wizard_factory, monkeypatch
+):
+    app, controller, window = wizard_factory()
+    installed_release(app)
+    plan = {"status": "ok", "changed": True, "version": "1.4.0", "stage": "verified-stage"}
+    handoffs = []
+    lifecycle_module(
+        monkeypatch,
+        lambda *_args, **_kwargs: plan,
+        lambda root, prepared, **kwargs: handoffs.append((root, prepared, kwargs)),
+    )
+    app.update_application()
+    settle(app)
+    assert handoffs == [(app.root, plan, {"parent_pid": os.getpid()})]
+    assert window.destroyed and app.handing_off
+    assert not window.callbacks
+    assert controller.cancel_calls == 0
+
+
+def test_failed_update_handoff_does_not_show_exception_or_close_app(wizard_factory, monkeypatch):
+    app, _, window = wizard_factory()
+    installed_release(app)
+
+    def fail(*_args, **_kwargs):
+        raise OSError("PRIVATE_EXCEPTION_VALUE")
+
+    lifecycle_module(monkeypatch, lambda *_a, **_k: {"status": "ok", "changed": True}, fail)
+    app.update_application()
+    settle(app)
+    assert not window.destroyed and not app.handing_off
+    assert "Retry Update" in app.notice.get()
+    assert "PRIVATE_EXCEPTION_VALUE" not in app.notice.get() + app.log.text
+
+
+def test_cancel_update_stops_preparation_without_cancelling_model_processes(
+    wizard_factory, monkeypatch
+):
+    app, controller, window = wizard_factory()
+    installed_release(app)
+    entered = threading.Event()
+
+    def prepare(*_args, cancel_event, **_kwargs):
+        entered.set()
+        assert cancel_event.wait(timeout=2)
+        raise SafeLifecycleError("cancelled", "Update download cancelled.")
+
+    lifecycle_module(monkeypatch, prepare)
+    app.update_application()
+    assert entered.wait(timeout=1)
+    app.cancel()
+    settle(app)
+    assert app.update_cancel.is_set()
+    assert "cancelled" in app.notice.get()
+    assert controller.cancel_calls == 0
+    assert not window.destroyed
+
+
+def test_cancel_after_download_finishes_still_prevents_update_handoff(wizard_factory, monkeypatch):
+    app, _, window = wizard_factory()
+    lifecycle_module(
+        monkeypatch,
+        lambda *_args, **_kwargs: pytest.fail("unexpected preparation"),
+        lambda *_args, **_kwargs: pytest.fail("cancelled download must not install"),
+    )
+    app.update_cancel.set()
+    app.update_prepared({"status": "ok", "changed": True})
+    assert "cancelled" in app.notice.get()
+    assert not window.destroyed and not app.handing_off
+
+
+def test_update_cannot_start_while_a_task_or_model_check_is_running(wizard_factory, monkeypatch):
+    app, _, window = wizard_factory()
+    installed_release(app)
+    app.busy = True
+    lifecycle_module(monkeypatch, lambda *_args, **_kwargs: pytest.fail("concurrent update"))
+    app.update_application()
+    assert not window.destroyed
+
+
+def test_close_during_update_cancels_and_never_hands_off(wizard_factory, monkeypatch):
+    app, controller, window = wizard_factory()
+    installed_release(app)
+    app.busy = app.closing = True
+    app.operation_kind = "update"
+    lifecycle_module(
+        monkeypatch,
+        lambda *_args, **_kwargs: pytest.fail("unexpected preparation"),
+        lambda *_args, **_kwargs: pytest.fail("closing app must not start updater"),
+    )
+    app.events.put(("done", (app.update_prepared, {"status": "ok", "changed": True})))
+    app.poll()
+    assert window.destroyed and app.update_cancel.is_set()
+    assert controller.cancel_calls == 0
+
+
+def test_windows_window_uses_packaged_custom_icon(wizard_factory, monkeypatch):
+    app, _, _ = wizard_factory()
+    icon = app.root / "assets/aass.ico"
+    icon.parent.mkdir()
+    icon.write_bytes(b"fixture-icon")
+    icons = []
+    monkeypatch.setattr(
+        Window, "iconbitmap", lambda self, **kwargs: icons.append(kwargs), raising=False
+    )
+    monkeypatch.setattr(gui.sys, "platform", "win32")
+    wizard_factory()
+    assert icons == [{"default": str(icon)}]
+
+
+def test_gui_smoke_check_never_takes_installation_instance_lock(
+    wizard_factory, monkeypatch, capsys
+):
+    _, _, window = wizard_factory()
+    tk = sys.modules["tkinter"]
+    tk.Tk = lambda: window
+    monkeypatch.setitem(
+        sys.modules,
+        "app_lifecycle",
+        SimpleNamespace(application_lock=lambda *_args: pytest.fail("smoke created app state")),
+    )
+    assert gui.main(["--smoke-test"]) == 0
+    assert window.destroyed
+    assert json.loads(capsys.readouterr().out)["model_requests"] == 0
+
+
+def test_gui_holds_single_instance_lock_until_its_window_closes(wizard_factory, monkeypatch):
+    _, _, window = wizard_factory()
+    sys.modules["tkinter"].Tk = lambda: window
+    events = []
+
+    @contextmanager
+    def lock(root):
+        events.append(("locked", root))
+        yield
+        events.append(("released", root))
+
+    window.mainloop = lambda: events.append(("mainloop", gui.ROOT))
+    monkeypatch.setitem(
+        sys.modules,
+        "app_lifecycle",
+        SimpleNamespace(application_lock=lock, LifecycleError=SafeLifecycleError),
+    )
+    assert gui.main([]) == 0
+    assert [entry[0] for entry in events] == ["locked", "mainloop", "released"]
+
+
+def test_second_instance_explains_existing_window_without_constructing_another_app(
+    wizard_factory, monkeypatch
+):
+    _, _, window = wizard_factory()
+    messages = []
+    tk = sys.modules["tkinter"]
+    tk.Tk = lambda: window
+    tk.messagebox = SimpleNamespace(showinfo=lambda *args, **kwargs: messages.append(args))
+
+    @contextmanager
+    def locked(_root):
+        raise SafeLifecycleError("already_running", "AASS is already open. Use that window.")
+        yield
+
+    monkeypatch.setitem(
+        sys.modules,
+        "app_lifecycle",
+        SimpleNamespace(application_lock=locked, LifecycleError=SafeLifecycleError),
+    )
+    monkeypatch.setattr(gui, "SetupWizard", lambda *_args, **_kwargs: pytest.fail("second app"))
+    assert gui.main([]) == 2
+    assert window.destroyed
+    assert messages == [("AASS", "AASS is already open. Use that window.")]
+
+
+@pytest.mark.parametrize(
+    "status,expected",
+    [
+        ("updated", "Updated to AASS 1.4.0"),
+        ("rolled_back", "previous working version was restored"),
+        ("failed", "current app remains installed"),
+        ("updating", "desktop shortcut"),
+    ],
+)
+def test_restarted_gui_shows_safe_update_or_rollback_result(wizard_factory, status, expected):
+    app, _, _ = wizard_factory()
+    report = app.root / ".aass/update-status.json"
+    report.parent.mkdir()
+    report.write_text(
+        json.dumps({"status": status, "version": "1.4.0", "message": "PRIVATE_UNTRUSTED_EXCEPTION"})
+    )
+    restarted, _, _ = wizard_factory()
+    assert expected in restarted.update_status.get()
+    assert "PRIVATE_UNTRUSTED_EXCEPTION" not in restarted.log.text
+
+
+def test_bad_update_status_cannot_break_startup_or_echo_private_data(tmp_path):
+    state = tmp_path / ".aass"
+    state.mkdir()
+    report = state / "update-status.json"
+    for payload in ["not-json", "[]", '{"status":"PRIVATE_VALUE"}', " " * 16385]:
+        report.write_text(payload)
+        assert gui.last_update_notice(tmp_path) == ""
+    report.write_text(
+        json.dumps({"status": "updated", "version": "PRIVATE_VALUE", "message": "PRIVATE_VALUE"})
+    )
+    assert gui.last_update_notice(tmp_path) == "Updated. Your settings were preserved."

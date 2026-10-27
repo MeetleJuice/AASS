@@ -30,6 +30,13 @@ FILES = [
     "setup_api.py",
     "setup_controller.py",
     "setup_wizard.py",
+    "update_manager.py",
+    "app_lifecycle.py",
+    "desktop_bootstrap.py",
+    "desktop_launcher.py",
+    "desktop_integration.py",
+    "assets/aass.ico",
+    "assets/aass.svg",
     "launch-aass.sh",
     "circuit_breaker.py",
     "worker_agent.py",
@@ -47,6 +54,7 @@ FILES = [
     "docs/VALIDATION.md",
     "docs/ARCHITECTURE.md",
     "docs/SETUP-SIMPLIFICATION-PLAN.md",
+    "docs/INSTALL-UPDATE-PLAN.md",
 ]
 
 
@@ -78,7 +86,9 @@ def build(root=ROOT, *, allow_dirty=False):
         path = root / name
         if path.is_symlink() or not path.is_file():
             raise ValueError("Missing or symlinked release source: " + name)
-        data = path.read_bytes().replace(b"\r\n", b"\n")
+        data = path.read_bytes()
+        if path.suffix.lower() != ".ico":
+            data = data.replace(b"\r\n", b"\n")
         if name.endswith((".bat", ".cmd")):
             data = data.replace(b"\n", b"\r\n")
         content[name] = data

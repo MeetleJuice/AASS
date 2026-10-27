@@ -146,7 +146,14 @@ class CommandResult:
 class SetupController:
     def __init__(self, root=ROOT, base_python=sys.executable, *, heartbeat=15):
         self.root = Path(root).resolve()
-        self.base_python = str(base_python)
+        interpreter = Path(base_python)
+        if (
+            os.name == "nt"
+            and interpreter.name.lower() == "pythonw.exe"
+            and interpreter.with_name("python.exe").is_file()
+        ):
+            interpreter = interpreter.with_name("python.exe")
+        self.base_python = str(interpreter)
         self.heartbeat = heartbeat
         self._job_lock = threading.Lock()
         self._process_lock = threading.Lock()

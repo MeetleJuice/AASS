@@ -1,3 +1,34 @@
+# Desktop installation and updates in 1.3.0
+
+Extract the full ZIP into a new Desktop folder and double-click Install-AASS.bat.
+It checks the latest verified GitHub release, copies source to
+`%LOCALAPPDATA%/Programs/AASS`, then opens local setup. After local checks pass,
+a custom AASS desktop shortcut is created on your actual Windows Desktop,
+including OneDrive-redirected Desktops. Launch AASS from that icon thereafter.
+
+Use **Update** in the app for future releases. It downloads and verifies a full
+published release, closes the app, saves a rollback copy, updates needed runtime
+components, checks the GUI/browser and dependencies, refreshes the shortcut and
+restarts. Your settings, credential-file selection and separate projects remain.
+If installation fails it restores both previous source and runtime. Interrupted
+updates recover before application modules load on the next desktop launch.
+Only one window/update may own an installation. The update progress window
+explains progress; reopening the app shows the result.
+
+The extracted ZIP folder is not the installed application. If your private .env
+is there, keep that file in place or select its new location in the app after
+moving it. Keys are referenced by path and never copied into release archives.
+Python 3.12 with Tcl/Tk, working Docker Desktop and Ollama are prerequisites.
+Windows feature changes/restarts and provider access/billing still need the owner.
+
+GitHub Code ZIPs without a manifest download the latest verified release before
+installing. If main is newer than the published release, wait for publication and
+rerun. No arbitrary raw branch code is labelled a scanned release. The normal
+installer checks for updates; `--offline` source installation is an advanced
+option requiring a complete manifest-verified release.
+
+---
+
 # Windows — guided setup
 
 Download the full **AASS 1.2.1 release ZIP** from

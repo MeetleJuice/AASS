@@ -2,13 +2,17 @@
 
 import argparse
 import json
+import os
 import queue
 import re
+import sys
 import threading
+import tomllib
 import webbrowser
 from pathlib import Path
 
 from settings import (
+    is_link,
     provider_preferences,
     save_credentials_file,
     save_provider_preferences,
@@ -17,6 +21,47 @@ from setup_controller import ControllerError, SetupController
 
 ROOT = Path(__file__).resolve().parent
 SERVICES = {"Gemini": "gemini", "OpenAI": "openai", "Anthropic": "anthropic"}
+
+
+def application_version(root):
+    """Display the installed source version without importing installed metadata."""
+    path = Path(root) / "pyproject.toml"
+    try:
+        if path.is_file() and path.stat().st_size <= 128 * 1024:
+            version = tomllib.loads(path.read_text(encoding="utf-8"))["project"]["version"]
+            if isinstance(version, str) and re.fullmatch(r"\d+\.\d+\.\d+", version):
+                return version
+    except (OSError, ValueError, KeyError, TypeError):
+        pass
+    return "development"
+
+
+def last_update_notice(root):
+    """Translate local status codes, without echoing a stored exception/message."""
+    path = Path(root) / ".aass/update-status.json"
+    try:
+        if is_link(path) or not path.is_file() or path.stat().st_size > 16 * 1024:
+            return ""
+        report = json.loads(path.read_text(encoding="utf-8"))
+        if not isinstance(report, dict):
+            return ""
+        status = report.get("status")
+        version = report.get("version", "")
+        if not isinstance(version, str) or not re.fullmatch(r"\d+\.\d+\.\d+", version):
+            version = ""
+        if status == "updated":
+            return (
+                "Updated"
+                + (" to AASS " + version if version else "")
+                + ". Your settings were preserved."
+            )
+        return {
+            "rolled_back": "The update did not pass its checks. Your previous working version was restored. You can retry Update.",
+            "failed": "The last update did not complete. Your current app remains installed. You can retry Update.",
+            "updating": "The last update was interrupted. Reopen AASS from your desktop shortcut to finish recovery.",
+        }.get(status, "")
+    except (OSError, ValueError):
+        return ""
 
 
 def preferred_model(models, saved=""):
@@ -44,6 +89,9 @@ class SetupWizard:
         self.events = queue.Queue()
         self.busy = False
         self.closing = False
+        self.handing_off = False
+        self.operation_kind = None
+        self.update_cancel = threading.Event()
         self.worker_passed = False
         self.cloud_passed = False
         self.models = []
@@ -55,7 +103,14 @@ class SetupWizard:
             self.preferences = provider_preferences(self.root)
         except (OSError, ValueError):
             pass
-        window.title("AASS - setup and workspace")
+        self.version = application_version(self.root)
+        window.title("AASS " + self.version + " - setup and workspace")
+        icon = self.root / "assets/aass.ico"
+        if sys.platform == "win32" and icon.is_file():
+            try:
+                window.iconbitmap(default=str(icon))
+            except (OSError, AttributeError, tk.TclError):
+                pass
         width = min(900, max(560, window.winfo_screenwidth() - 60))
         height = min(800, max(450, window.winfo_screenheight() - 100))
         self.wrap_width = width - 85
@@ -64,11 +119,22 @@ class SetupWizard:
         window.protocol("WM_DELETE_WINDOW", self.close)
         main = ttk.Frame(window, padding=18)
         main.pack(fill="both", expand=True)
-        ttk.Label(main, text="AASS", font=("Segoe UI", 22, "bold")).pack(anchor="w")
+        header = ttk.Frame(main)
+        header.pack(fill="x")
+        ttk.Label(header, text="AASS " + self.version, font=("Segoe UI", 22, "bold")).pack(
+            side="left"
+        )
+        self.button(header, "Update", self.update_application).pack(side="right")
         ttk.Label(
             main, text="Prepare this PC, connect your models, then choose what to build."
         ).pack(anchor="w", pady=(0, 12))
         self.notice = tk.StringVar(value="Ready. Your existing tools and models will be reused.")
+        self.update_status = tk.StringVar(
+            value="Updates install verified GitHub releases and preserve your settings."
+        )
+        ttk.Label(main, textvariable=self.update_status, wraplength=self.wrap_width).pack(
+            fill="x", pady=(0, 5)
+        )
         ttk.Label(main, textvariable=self.notice, wraplength=self.wrap_width).pack(
             fill="x", pady=(0, 8)
         )
@@ -181,6 +247,11 @@ class SetupWizard:
         self.log.pack(side="left", fill="both", expand=True)
         scroll.pack(side="right", fill="y")
         self.poll_id = window.after(100, self.poll)
+        previous_update = last_update_notice(self.root)
+        if previous_update:
+            self.update_status.set(previous_update)
+            self.notice.set(previous_update)
+            self.append(previous_update)
         if not smoke:
             if auto_install:
                 window.after(150, self.install)
@@ -223,10 +294,11 @@ class SetupWizard:
         self.log.see("end")
         self.log.configure(state="disabled")
 
-    def start(self, label, operation, done):
+    def start(self, label, operation, done, *, kind=None):
         if self.busy:
             return
         self.busy = True
+        self.operation_kind = kind
         self.notice.set(label)
         self.progress.start(12)
         for button in self.buttons:
@@ -260,7 +332,7 @@ class SetupWizard:
 
     def poll(self):
         if self.closing and self.busy:
-            self.controller.cancel()
+            self.cancel()
         try:
             for _ in range(100):
                 kind, payload = self.events.get_nowait()
@@ -268,6 +340,7 @@ class SetupWizard:
                     self.append(payload)
                 else:
                     self.busy = False
+                    self.operation_kind = None
                     self.progress.stop()
                     for button in self.buttons:
                         button.configure(state="normal")
@@ -284,6 +357,8 @@ class SetupWizard:
                         self.notice.set(
                             "Settings could not be saved. Check that the extracted application folder is writable."
                         )
+                    if self.handing_off:
+                        return
         except queue.Empty:
             pass
         self.poll_id = self.window.after(100, self.poll)
@@ -311,6 +386,80 @@ class SetupWizard:
         self.notice.set(text)
         self.connection_status.set(text)
         self.append(text)
+
+    def update_application(self):
+        """Prepare a verified release without touching this running application."""
+        if self.busy:
+            return
+        if not (self.root / "RELEASE-MANIFEST.json").is_file():
+            self.update_status.set(
+                "Run Install-AASS.bat to install the managed application before updating it."
+            )
+            self.notice.set(self.update_status.get())
+            return
+
+        def prepare():
+            from app_lifecycle import LifecycleError, prepare_update
+
+            try:
+                return prepare_update(
+                    self.root, callback=self.stream, cancel_event=self.update_cancel
+                )
+            except LifecycleError as error:
+                return {
+                    "status": "error",
+                    "code": error.code,
+                    "message": error.message,
+                    "hint": "Your current app is still available. Retry Update when the issue is resolved.",
+                }
+
+        self.update_cancel.clear()
+        self.update_status.set("Checking GitHub for the latest verified release...")
+        self.start(
+            "Checking and preparing your update. The app will restart after a verified update is ready.",
+            prepare,
+            self.update_prepared,
+            kind="update",
+        )
+
+    def update_prepared(self, report):
+        if self.update_cancel.is_set():
+            self.update_status.set("Update cancelled. Your current app is still installed.")
+            self.notice.set(self.update_status.get())
+            self.append(self.update_status.get())
+            return
+        if not isinstance(report, dict) or report.get("status") != "ok":
+            self.update_status.set("Update did not complete. Your current app is still available.")
+            if isinstance(report, dict):
+                self.error(report)
+            else:
+                self.notice.set(self.update_status.get())
+            return
+        if not report.get("changed"):
+            self.update_status.set("AASS is up to date.")
+            self.notice.set("You already have the latest verified release.")
+            self.append("AASS is up to date. No application files or settings were changed.")
+            return
+        try:
+            from app_lifecycle import launch_update
+
+            launch_update(self.root, report, parent_pid=os.getpid())
+        except Exception:
+            self.update_status.set(
+                "The update could not start. Your current app is still available."
+            )
+            self.notice.set(
+                "Retry Update. If it repeats, close AASS and reopen it from your desktop shortcut."
+            )
+            self.append(self.update_status.get())
+            return
+        # The detached base-Python helper owns the transaction. Releasing this
+        # GUI also releases its runtime DLLs before replacement on Windows.
+        self.handing_off = True
+        self.update_status.set("Verified update ready. Restarting AASS...")
+        self.notice.set(self.update_status.get())
+        self.window.after_cancel(self.poll_id)
+        self.window.destroy()
 
     def install(self):
         self.worker_passed = self.cloud_passed = False
@@ -574,6 +723,10 @@ class SetupWizard:
         )
 
     def cancel(self):
+        if self.operation_kind == "update":
+            self.update_cancel.set()
+            self.notice.set("Cancelling the update download. Your current app stays installed...")
+            return
         if self.controller.cancel():
             self.notice.set("Cancelling this operation. Waiting for its child processes to stop...")
 
@@ -629,15 +782,26 @@ def main(argv=None):
             "AASS could not open a graphical window. On Windows, repair Python's Tcl/Tk component. Advanced terminal mode: python local_app.py."
         )
         return 2
-    app = SetupWizard(window, auto_install=args.install, smoke=args.smoke_test)
     if args.smoke_test:
+        app = SetupWizard(window, auto_install=args.install, smoke=True)
         window.update_idletasks()
         window.update()
         window.after_cancel(app.poll_id)
         window.destroy()
         print(json.dumps({"status": "ok", "gui_constructed": True, "model_requests": 0}))
         return 0
-    window.mainloop()
+    from app_lifecycle import LifecycleError, application_lock
+
+    try:
+        with application_lock(ROOT):
+            SetupWizard(window, auto_install=args.install)
+            window.mainloop()
+    except LifecycleError as error:
+        from tkinter import messagebox
+
+        messagebox.showinfo("AASS", error.message, parent=window)
+        window.destroy()
+        return 2
     return 0
 
 

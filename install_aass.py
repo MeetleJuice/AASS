@@ -469,7 +469,22 @@ def main():
     try:
         with installation_lock(installer.state / "setup.lock"):
             acquired = True
-            return installer.install(skip_live=not args.verify_live)
+            result = installer.install(skip_live=not args.verify_live)
+            if (
+                result == 0
+                and os.name == "nt"
+                and (installer.state / "managed-install.json").is_file()
+            ):
+                from desktop_integration import create_shortcut
+
+                installer.say("[AASS] Creating your custom AASS desktop icon...")
+                shortcut = create_shortcut(installer.root)
+                installer.say("[AASS] Desktop icon ready: " + str(shortcut))
+                atomic = {"path": str(shortcut), "ready": True}
+                from telemetry import atomic_json
+
+                atomic_json(installer.state / "shortcut.json", atomic)
+            return result
     except KeyboardInterrupt:
         installer.say("Setup cancelled. Double-click Install-AASS.bat to retry.")
         installer.status("cancelled")

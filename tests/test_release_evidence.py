@@ -9,7 +9,7 @@ import pytest
 from scripts.check_release_evidence import check
 
 
-def evidence_fixture(directory, *, version="1.2.1", dirty=False):
+def evidence_fixture(directory, *, version="1.3.0", dirty=False):
     code = b"print('verified source')\n"
     manifest = {
         "format": 1,
@@ -18,7 +18,7 @@ def evidence_fixture(directory, *, version="1.2.1", dirty=False):
         "dirty": dirty,
         "files": {"app.py": hashlib.sha256(code).hexdigest()},
     }
-    archive = directory / "AASS-1.2.1.zip"
+    archive = directory / "AASS-1.3.0.zip"
     with zipfile.ZipFile(archive, "w") as bundle:
         bundle.writestr(f"AASS-{version}/app.py", code)
         bundle.writestr(f"AASS-{version}/RELEASE-MANIFEST.json", json.dumps(manifest))

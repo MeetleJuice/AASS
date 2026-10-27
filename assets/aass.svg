@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
+  <title>AASS autonomous workspace</title>
+  <rect x="4" y="4" width="248" height="248" rx="54" fill="#101c2b"/>
+  <rect x="17" y="17" width="222" height="222" rx="43" fill="none" stroke="#244354" stroke-width="3"/>
+  <path d="M55 177 105 66h46l50 111h-38l-10-24h-50l-10 24zm60-54h26l-13-33z" fill="#a4f35d" fill-rule="evenodd"/>
+  <path d="M54 204h148" stroke="#5ee2c3" stroke-width="7" stroke-linecap="round"/>
+  <path d="M48 86v43m160-43v43" stroke="#315c6b" stroke-width="5" stroke-linecap="round"/>
+  <circle cx="48" cy="72" r="9" fill="#5ee2c3"/>
+  <circle cx="208" cy="72" r="9" fill="#ffbc5a"/>
+  <circle cx="48" cy="142" r="6" fill="#315c6b"/>
+  <circle cx="208" cy="142" r="6" fill="#315c6b"/>
+</svg>

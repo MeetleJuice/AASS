@@ -1,15 +1,87 @@
 """Cross-platform local launcher: create environment, install locked dependencies, discover services."""
 
 import argparse
+import hashlib
 import os
 import shutil
 import subprocess
 import sys
+import sysconfig
+import tempfile
 import time
+import tomllib
 import venv
 from pathlib import Path
 
 from settings import is_link, subprocess_environment
+
+
+def dependency_fingerprint(root, lockfile=None):
+    """Describe verified wheels independently of application version or location."""
+    root = Path(root).resolve()
+    lockfile = Path(lockfile) if lockfile is not None else root / "requirements.lock"
+    if not lockfile.is_absolute():
+        lockfile = root / lockfile
+    interpreter = "\0".join(
+        (sys.version, sys.implementation.cache_tag or "", sys.platform, sysconfig.get_platform())
+    ).encode()
+    return hashlib.sha256(lockfile.read_bytes() + b"\0" + interpreter).hexdigest()
+
+
+def application_fingerprint(root, dependencies):
+    root = Path(root).resolve()
+    return hashlib.sha256(
+        (root / "pyproject.toml").read_bytes() + str(root).encode() + dependencies.encode()
+    ).hexdigest()
+
+
+def marker_matches(path, expected):
+    if is_link(path):
+        raise SystemExit("An installation marker is linked. Repair the application environment.")
+    try:
+        return (
+            path.is_file()
+            and path.stat().st_size <= 1024
+            and path.read_text(encoding="utf-8").strip() == expected
+        )
+    except UnicodeError:
+        return False
+
+
+def save_marker(path, fingerprint):
+    """An interrupted write must never look like a completed installation."""
+    descriptor, temporary = tempfile.mkstemp(dir=path.parent, prefix=".aass-marker-")
+    try:
+        with os.fdopen(descriptor, "w", encoding="utf-8") as stream:
+            stream.write(fingerprint)
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.replace(temporary, path)
+    finally:
+        if os.path.exists(temporary):
+            os.unlink(temporary)
+
+
+def browser_available(executable, root):
+    """Probe the actual isolated browser, including the current Playwright cache."""
+    probe = (
+        "from tools.browser_session import BrowserSession; "
+        "browser = BrowserSession([]); "
+        "\ntry:\n assert browser.ask({'operation': 'probe'}) is True"
+        "\nfinally:\n browser.close()\n"
+    )
+    try:
+        result = subprocess.run(
+            [str(executable), "-I", "-c", probe],
+            cwd=root,
+            env=subprocess_environment(),
+            capture_output=True,
+            timeout=75,
+            check=False,
+        )
+        return result.returncode == 0
+    except (OSError, subprocess.TimeoutExpired):
+        return False
 
 
 def setup_step(label, command, *, cwd=None, progress_interval=15):
@@ -49,7 +121,7 @@ def setup_step(label, command, *, cwd=None, progress_interval=15):
     print(f"[AASS] Finished: {label}", flush=True)
 
 
-def main():
+def main(argv=None):
     root = Path(__file__).resolve().parent
     environment = root / ".venv"
     executable = environment / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
@@ -66,8 +138,12 @@ def main():
         action="store_true",
         help="Include the optional read-only PostgreSQL MCP driver",
     )
-    args, remaining = parser.parse_known_args()
+    args, remaining = parser.parse_known_args(argv)
+    version = tomllib.loads((root / "pyproject.toml").read_text(encoding="utf-8"))["project"][
+        "version"
+    ]
     print(f"[AASS] Python: {sys.executable}", flush=True)
+    print(f"[AASS] Application version: {version}", flush=True)
     print(f"[AASS] Project: {root}", flush=True)
     if is_link(environment):
         raise SystemExit(
@@ -76,9 +152,6 @@ def main():
     if not executable.exists():
         print("[AASS] Creating virtual environment...", flush=True)
         venv.EnvBuilder(with_pip=True).create(environment)
-    marker = environment / ".aass-installed"
-    import hashlib
-
     lockfile = root / (
         "requirements-dev.lock"
         if args.dev
@@ -86,9 +159,16 @@ def main():
         if args.postgres
         else "requirements.lock"
     )
-    fingerprint = hashlib.sha256(
-        lockfile.read_bytes() + (root / "pyproject.toml").read_bytes() + str(root).encode()
-    ).hexdigest()
+    dependencies = dependency_fingerprint(root, lockfile)
+    application = application_fingerprint(root, dependencies)
+    dependency_marker = environment / ".aass-dependencies"
+    application_marker = environment / ".aass-application"
+    browser_marker = environment / ".aass-browser"
+    legacy_marker = environment / ".aass-installed"
+    install_dependencies = not marker_matches(dependency_marker, dependencies)
+    install_application = install_dependencies or not marker_matches(
+        application_marker, application
+    )
     pip = [
         str(executable),
         "-u",
@@ -102,7 +182,11 @@ def main():
         "1",
         "--verbose",
     ]
-    if not marker.exists() or marker.read_text() != fingerprint:
+    if install_dependencies:
+        # Invalidate before pip mutates anything. A partial failed upgrade must
+        # not reuse an old success marker when source is rolled back.
+        for marker in (dependency_marker, application_marker, browser_marker, legacy_marker):
+            marker.unlink(missing_ok=True)
         setup_step(
             "Installing locked Python dependencies",
             [
@@ -118,19 +202,40 @@ def main():
             ],
             cwd=root,
         )
+    else:
+        print("[AASS] Reusing hash-locked Python dependencies.", flush=True)
+    if install_application:
+        application_marker.unlink(missing_ok=True)
+        legacy_marker.unlink(missing_ok=True)
         setup_step(
             "Installing AASS application",
             [*pip, "install", "--no-deps", "--no-build-isolation", "-e", "."],
             cwd=root,
         )
-        # Prefer an already installed verified system Chromium over a second download.
-        if not (os.environ.get("AASS_CHROMIUM_EXECUTABLE") or shutil.which("chromium")):
-            setup_step(
-                "Installing Chromium browser",
-                [str(executable), "-u", "-m", "playwright", "install", "chromium"],
-                cwd=root,
+    print("[AASS] Checking Chromium browser and installed cache...", flush=True)
+    if not browser_available(executable, root):
+        browser_marker.unlink(missing_ok=True)
+        if os.environ.get("AASS_CHROMIUM_EXECUTABLE") or shutil.which("chromium"):
+            raise SystemExit(
+                "The configured/system Chromium did not pass its local check. Repair that browser or choose a valid AASS_CHROMIUM_EXECUTABLE."
             )
-        marker.write_text(fingerprint)
+        setup_step(
+            "Installing Chromium browser",
+            [str(executable), "-u", "-m", "playwright", "install", "chromium"],
+            cwd=root,
+        )
+        if not browser_available(executable, root):
+            raise SystemExit(
+                "Chromium was installed but could not start. Check browser permissions and required system libraries, then retry local preparation."
+            )
+    else:
+        print("[AASS] Reusing verified Chromium browser.", flush=True)
+    # Commit the phase markers together only after packages, application and
+    # actual browser have passed. A browser-only repair does not reinstall wheels.
+    save_marker(dependency_marker, dependencies)
+    save_marker(application_marker, application)
+    save_marker(browser_marker, dependencies)
+    legacy_marker.unlink(missing_ok=True)
     if not (root / "generated/architecture_spec.json").exists():
         setup_step(
             "Initializing architecture and local model discovery",

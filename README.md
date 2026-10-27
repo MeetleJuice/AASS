@@ -2,7 +2,7 @@
 
 A bounded Python engineering agent with a local Ollama worker, isolated
 Docker tests, persistent failure history, and an independent cloud review gate.
-Preferred local model: **qwen3.5:9b**. Current version: **1.2.1**, with guided Windows setup.
+Preferred local model: **qwen3.5:9b**. Current version: **1.3.0**, with guided Windows setup.
 
 ## Windows installation
 
@@ -11,14 +11,17 @@ not an old diagnostic patch. An approved release includes its exact Microsoft
 Defender scan report, SHA-256 checksum, dependency audit, source scan, SBOM and
 GitHub build attestation. A release is published only after those checks succeed.
 
-1. Extract the complete release ZIP.
-2. Double-click **Install-AASS.bat**. Existing Python, Docker, Ollama and models are
-   reused. Local setup has visible stages, deadlines and a log.
-3. In the setup window, choose your private credential file if needed. Pick your
-   provider and a model from its available-model list, then **Test connections**
-   when ready to make real API requests. Cloud errors stay in the same window.
-4. Open **Run a task**, browse to a separate project folder and describe your task.
-   Use **Start-AASS.bat** for later launches. No PowerShell commands are needed.
+1. Extract the full ZIP into a new Desktop folder and double-click **Install-AASS.bat**.
+2. Setup checks the latest verified release and installs AASS in your permanent
+   per-user application folder. Existing Docker, Ollama and models are reused.
+3. After local checks pass, your desktop gets a custom **AASS** icon. Choose your
+   private credential file/provider/model in the setup window and test connections.
+4. Launch from the desktop icon. Use **Update** in the app for future GitHub releases;
+   it verifies, installs, checks and restarts automatically, preserving settings.
+
+Updates use published, verified releases. GitHub Code ZIP installs fetch that
+verified release automatically. Failed updates restore the previous app/runtime.
+See the [install/update plan](docs/INSTALL-UPDATE-PLAN.md).
 
 Your machine needs Python 3.12 including Tcl/Tk, Linux-container Docker Desktop and Ollama. Setup
 starts installed services. New system-wide prerequisites are installed only with

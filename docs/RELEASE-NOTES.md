@@ -1,3 +1,23 @@
+# AASS 1.3.0 - permanent desktop app and verified updates
+
+Extract a full ZIP and double-click Install-AASS.bat. AASS checks the latest
+verified release, installs in a permanent per-user folder and creates a custom
+Windows desktop icon after local setup passes. Code ZIPs fetch the verified
+release first. Existing model tools and private file selections are preserved.
+
+The app now has an Update button. It downloads complete published releases and
+checks archive hashes, source manifest and matching scan/audit evidence. After
+closing the GUI it backs up source and runtime, installs needed changes, verifies
+runtime/GUI/browser operation and restarts. Failure rolls back; interrupted copy
+recovery loads the complete old engine before importing application modules.
+Source-only changes reuse locked dependencies. No paid model check is automatic.
+
+Windows CI exercises clean managed bootstrap, real COM desktop shortcut and ICO
+loading, actual GUI/runtime/browser installation, update/rollback regressions,
+and Microsoft Defender scans of the ZIP and installed payload before publication.
+
+---
+
 # AASS 1.2.1 — align Gemini discovery and review
 
 Gemini's dropdown lists models advertising native generateContent. The judge now

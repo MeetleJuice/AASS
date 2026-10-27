@@ -218,8 +218,50 @@ def test_packaged_release_is_deterministic_and_contains_no_nested_payloads(tmp_p
         archive.extractall(tmp_path)
     release = next(tmp_path.iterdir())
     manifest = verify(release)
-    assert manifest["version"] == "1.2.1"
-    assert {"setup_api.py", "setup_controller.py", "setup_wizard.py"} <= manifest["files"].keys()
+    assert manifest["version"] == "1.3.0"
+    assert {
+        "setup_api.py",
+        "setup_controller.py",
+        "setup_wizard.py",
+        "update_manager.py",
+        "app_lifecycle.py",
+        "desktop_bootstrap.py",
+        "desktop_launcher.py",
+        "desktop_integration.py",
+        "assets/aass.ico",
+        "assets/aass.svg",
+    } <= manifest["files"].keys()
+    from scripts.package import ROOT
+
+    assert (release / "assets/aass.ico").read_bytes() == (ROOT / "assets/aass.ico").read_bytes()
+    assert (release / "assets/aass.ico").read_bytes().startswith(b"\x00\x00\x01\x00")
+
+
+def test_release_preserves_binary_icon_bytes_including_crlf(tmp_path, monkeypatch):
+    import zipfile
+    from types import SimpleNamespace
+
+    from scripts import package
+
+    root = tmp_path / "source"
+    (root / "assets").mkdir(parents=True)
+    (root / "pyproject.toml").write_bytes(b'[project]\r\nversion = "1.3.0"\r\n')
+    icon = b"\x00\x00\x01\x00\x01\x00\r\n" + bytes(range(256))
+    (root / "assets/aass.ico").write_bytes(icon)
+    monkeypatch.setattr(package, "FILES", ["pyproject.toml", "assets/aass.ico"])
+    monkeypatch.setattr(
+        package.subprocess,
+        "run",
+        lambda command, **kwargs: SimpleNamespace(
+            stdout="a" * 40 if "rev-parse" in command else ""
+        ),
+    )
+    archive = package.build(root)
+    with zipfile.ZipFile(archive) as bundle:
+        assert bundle.read("AASS-1.3.0/assets/aass.ico") == icon
+        assert b"\r\n" not in bundle.read("AASS-1.3.0/pyproject.toml")
+        manifest = json.loads(bundle.read("AASS-1.3.0/RELEASE-MANIFEST.json"))
+        assert manifest["files"]["assets/aass.ico"] == hashlib.sha256(icon).hexdigest()
 
 
 def test_directory_junction_policy_uses_windows_detection_when_available():
