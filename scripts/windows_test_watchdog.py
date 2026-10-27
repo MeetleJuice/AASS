@@ -22,7 +22,7 @@ def pytest_runtest_setup(item):
     _timer.start()
 
 
-def pytest_runtest_teardown(item):
+def pytest_runtest_logfinish(nodeid, location):
     global _timer
     if _timer is not None:
         _timer.cancel()
