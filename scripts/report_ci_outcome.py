@@ -1,5 +1,6 @@
 """Preserve bounded synthetic CI evidence even without a complete JUnit file."""
 
+import json
 import os
 import re
 import sys
@@ -22,6 +23,12 @@ def safe(value):
 def main():
     outcome, output, breadcrumb = sys.argv[1], Path(sys.argv[2]), Path(sys.argv[3])
     print("::notice title=Windows test phase::Outcome: " + safe(outcome))
+    exit_file = output.parent / "windows-process-exit.json"
+    if exit_file.is_file():
+        data = json.loads(exit_file.read_text(encoding="utf-8"))
+        code = data.get("returncode")
+        if isinstance(code, int):
+            print(f"::notice title=Python process exit::{code} ({hex(code & 0xFFFFFFFF)})")
     if outcome != "success":
         if output.is_file():
             with output.open("rb") as stream:

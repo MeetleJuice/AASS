@@ -1,6 +1,7 @@
 """Run CI tests under a separate watchdog, including native-code stalls."""
 
 import argparse
+import json
 import os
 import queue
 import re
@@ -71,6 +72,9 @@ def main():
             if process.poll() is None:
                 process.kill()
             process.wait(timeout=15)
+            (output_path.parent / "windows-process-exit.json").write_text(
+                json.dumps({"returncode": 124, "timed_out": True}), encoding="utf-8"
+            )
             return 124
         try:
             chunk = chunks.get(timeout=0.1)
@@ -90,7 +94,13 @@ def main():
         if matches and matches[-1] != current:
             current = matches[-1]
             deadline = time.monotonic() + args.timeout
-    return process.wait()
+    code = process.wait()
+    (output_path.parent / "windows-process-exit.json").write_text(
+        json.dumps({"returncode": code, "hex": hex(code & 0xFFFFFFFF), "timed_out": False}),
+        encoding="utf-8",
+    )
+    print(f"\nCI Python process exit: {code} ({hex(code & 0xFFFFFFFF)})", flush=True)
+    return 0 if code == 0 else 1
 
 
 if __name__ == "__main__":
