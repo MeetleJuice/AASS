@@ -1,3 +1,24 @@
+# Latest verification: 24e0a34
+
+Run https://github.com/MeetleJuice/AASS/actions/runs/40603500452 completed with
+failure. Security and Linux passed. Windows regressions passed, including the
+unchanged timeout assertions and native Unicode shortcut test. The subsequent
+"Clean Windows runtime install and real Chromium check" failed; Defender and
+publication were skipped. No 1.3.0 readiness or publication is claimed.
+
+Confirmed fixes: f122aee derives breadcrumbs from structured pytest locations and
+uses short icon-case IDs without changing payloads/assertions; 24e0a34 persists
+shortcut arguments with Unicode IShellLink instead of WScript.Shell's lossy path.
+Local full suite: 436 passed, 3 Windows-only skips; focused: 26 passed, 1 skip.
+
+External diagnostic blocker: public clean-install annotations expose only exit1;
+full step logs require sign-in and the cloud proxy still denies api.github.com
+with CONNECT403. The clean-install failure cause is not established. Obtain the
+last60–100 lines of that step from Windows job122537175055 before changing code.
+No tests or release gates were disabled. Earlier entries below are historical.
+
+---
+
 # Release readiness
 
 Status as of **October 27, 2026**: **1.3.0 is a release candidate, not a verified
