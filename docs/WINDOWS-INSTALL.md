@@ -1,152 +1,94 @@
-# Desktop installation and updates in 1.3.0
+# Windows installation and updates
 
-Extract the full ZIP into a new Desktop folder and double-click Install-AASS.bat.
-It checks the latest verified GitHub release, copies source to
-`%LOCALAPPDATA%/Programs/AASS`, then opens local setup. After local checks pass,
-a custom AASS desktop shortcut is created on your actual Windows Desktop,
-including OneDrive-redirected Desktops. Launch AASS from that icon thereafter.
+1. Download the full ZIP and extract it into a new Desktop folder.
+2. Double-click **Install-AASS.bat** and keep the progress window open.
+3. Setup checks GitHub, installs AASS permanently, prepares local tools and creates
+   your custom **AASS** desktop icon after local checks pass.
+4. If asked, select your existing private `.env` / `.env.txt` file. Choose the
+   provider/model and use **Test connections** when ready for real API requests.
+5. From then on, launch with the desktop icon. Click **Update** in AASS for updates.
 
-Use **Update** in the app for future releases. It downloads and verifies a full
-published release, closes the app, saves a rollback copy, updates needed runtime
-components, checks the GUI/browser and dependencies, refreshes the shortcut and
-restarts. Your settings, credential-file selection and separate projects remain.
-If installation fails it restores both previous source and runtime. Interrupted
-updates recover before application modules load on the next desktop launch.
-Only one window/update may own an installation. The update progress window
-explains progress; reopening the app shows the result.
+No PowerShell commands or manual copying of future update files are needed.
+The permanent application folder is `%LOCALAPPDATA%/Programs/AASS`.
 
-The extracted ZIP folder is not the installed application. If your private .env
-is there, keep that file in place or select its new location in the app after
-moving it. Keys are referenced by path and never copied into release archives.
-Python 3.12 with Tcl/Tk, working Docker Desktop and Ollama are prerequisites.
-Windows feature changes/restarts and provider access/billing still need the owner.
+## What setup prepares
 
-GitHub Code ZIPs without a manifest download the latest verified release before
-installing. If main is newer than the published release, wait for publication and
-rerun. No arbitrary raw branch code is labelled a scanned release. The normal
-installer checks for updates; `--offline` source installation is an advanced
+Python 3.12 including Tcl/Tk, Docker Desktop with a running Linux engine, and
+Ollama are prerequisites. Existing installations, downloaded models and cached
+images are reused. Setup installs hash-locked application dependencies, verifies
+the browser and real sandbox execution, then creates the desktop shortcut on your
+actual Desktop, including OneDrive redirection. Dependencies and source are
+prepared in the permanent folder; built virtual environments are never relocated.
+
+If Docker requests Virtual Machine Platform, WSL, virtualization or a Windows
+restart, complete that Windows action using Docker's official instructions. Save
+work and restart Windows when requested, then retry setup. AASS does not change
+firmware, force restarts or weaken Windows protection. Missing system tools are
+reported; advanced `--install-prerequisites` allows supported official winget
+installations explicitly. Local package setup makes no paid model calls.
+
+## Private credentials
+
+A `.env` or Notepad `.env.txt` beside the extracted installer is recognized and
+bound by absolute path. You can also choose another existing file in the window.
+Use KEY=value lines; UTF-8 and BOM-marked Notepad UTF-16 are supported. Supported
+names include GEMINI_API_KEY / GOOGLE_API_KEY, OPENAI_API_KEY and ANTHROPIC_API_KEY.
+Only the selected path and provider/model preference are saved; values stay in
+your private file. Keep that file in place or select its new location after moving
+it. Never commit keys or paste them into chat.
+
+Process bindings take precedence, then selected-file settings and bounded Desktop
+discovery. Unreadable explicit selections are reported. Listing models uses an
+official HTTPS metadata endpoint and does not prove generation access or quota.
+Gemini uses native generateContent; older official compatibility URLs migrate in
+memory. Connection tests and tasks make real, potentially paid requests.
+
+## Updates
+
+**Update** downloads a complete published release from MeetleJuice/AASS. It checks
+archive hashes, the clean source manifest and matching Defender/audit evidence.
+It then closes the GUI, saves source/runtime for rollback, applies the release,
+installs needed changes, checks runtime/GUI/browser operation, refreshes the
+shortcut and restarts. Settings and separate projects remain. Source-only updates
+reuse dependencies; changed dependency locks trigger hash-verified installation.
+
+Failed updates restore both source and runtime. If interrupted, the desktop
+launcher loads the complete verified backup engine before importing potentially
+incomplete application modules. Reopening AASS shows update/recovery status.
+The progress window describes each stage. Only one GUI/update can own an install;
+close any manually launched CLI processes before updating.
+
+The latest published verified release is used, rather than untested branch code.
+GitHub Code ZIPs automatically fetch it. If main is newer than the published
+version, wait for publication and rerun. Offline installation is an advanced
 option requiring a complete manifest-verified release.
 
----
+## Recover from connection problems
 
-# Windows — guided setup
+Your local installation remains installed when a cloud check fails. A successful
+worker check is retained for a cloud-only retry. Logs identify provider, model,
+API route and recognized machine-readable error codes without raw responses.
 
-Download the full **AASS 1.2.1 release ZIP** from
-[GitHub Releases](https://github.com/MeetleJuice/AASS/releases/latest). Extract all
-files, then double-click **Install-AASS.bat**. No PowerShell folder navigation is
-needed. Keep Docker Desktop open with its Linux engine running.
+- 401 / invalid key: choose the current private key file and refresh detection.
+- 403 / restrictions: check API/project permissions and allowed key restrictions.
+- 404: select another listed text model; it may lack access on this API account.
+- 429 / billing: check API usage, credits, quota and rate limits before retrying.
+- Timeout: check the network/service and retry that check.
 
-The setup window prepares local tools, shows progress, detects your private key
-file and loads a model dropdown from your provider. If more than one provider has
-keys, choose the one you intend to use. Click **Test connections (uses API)** when
-ready, then use the **Run a task** tab to browse to a separate project folder and
-describe your task. Later double-click **Start-AASS.bat** for the same window.
+No reinstall is needed for provider account errors. App subscriptions may not
+include API credit. The independent judge receives task, changed source and test
+evidence. Use an account authorized to receive that code.
 
-## Credentials without commands
+## Release evidence and logs
 
-Your existing `.env` or Notepad `.env.txt` beside Install-AASS.bat is recognized.
-Alternatively, click **Choose existing .env / text file** and select your private
-file wherever you keep it. Only its path is saved in `.aass/credentials.json`;
-key values stay in the file. UTF-8 and BOM-marked UTF-16 text are supported.
-Use simple `KEY=value` lines. Supported names are `GEMINI_API_KEY` or
-`GOOGLE_API_KEY`, `OPENAI_API_KEY`, and `ANTHROPIC_API_KEY`.
-
-Existing process environment bindings take precedence, followed by your explicitly
-selected file, application `.env`, application `.env.txt`, and bounded Desktop
-credential discovery. The Desktop search reads `.env` and named key/API/token/
-credential folders, at most one nested directory and 100 files. It does not scan
-unrelated Desktop projects. An unreadable explicit selection is reported, rather
-than silently replaced by another credential. Never paste keys into chat.
-
-The model list uses official HTTPS endpoints. It makes no generation request;
-being listed does not guarantee model access, billing entitlement or quota.
-Choose a listed text model, then test it. Provider/model preferences are saved in
-`.aass/provider.json`, without keys. An unavailable saved model is replaced only
-by an ID actually returned in the catalog. Providers never silently switch to
-another account. The advanced generic `AASS_JUDGE_API_KEY` needs its matching
-`AASS_JUDGE_BASE_URL` so setup can identify the intended provider safely.
-
-## Local prerequisites and progress
-
-Python 3.12 (including Tcl/Tk), Docker Desktop with a Linux engine and Ollama are
-required. Existing installations, downloaded models and cached images are reused.
-The installer starts installed services, prefers qwen3.5:9b if present and reuses
-another installed model rather than replacing it. Missing system prerequisites
-are reported. The advanced CLI `--install-prerequisites` option explicitly allows
-supported official winget installers; normal setup does not silently chain them.
-
-Downloads show stages, output and a regular elapsed-time message. You can cancel
-the current operation. Completed stages can be reused on retry. Large models and
-browser downloads can take several minutes depending on your connection.
-
-If Docker reports **Virtual Machine Platform**, **WSL**, virtualization or restart
-requirements, use **Docker / Windows help** in AASS. Complete the Windows action
-in Docker's official instructions and restart Windows when requested. Restarting
-only Docker is insufficient. Then reopen AASS and click Prepare / check this PC.
-AASS does not force a reboot, alter firmware, change execution policy or weaken
-Windows protection.
-
-## Recover from a cloud error in the same window
-
-- **401:** check the key in your private file, then Refresh detection.
-- **403:** check API permissions, region/project restrictions and model access.
-- **404:** Load models again, choose an available model and retry.
-- **429:** check provider usage, API credits/quota and rate limits before retrying.
-  App subscriptions do not necessarily include API credit.
-- **Connection/timeout:** check the service and network, then retry the check.
-
-A successful worker check is retained while you retry the cloud check. Changing
-provider/model invalidates its cloud result; refreshing credentials invalidates
-both. A cloud rejection never requires reinstalling Python, Docker or packages.
-No paid cloud requests run at startup or during local installation. Connection
-tests and task runs make real requests. The independent judge receives your task,
-changed source and test evidence; choose a provider you permit to receive it.
-
-The task tab includes a folder picker and task field. Choose a project outside
-the AASS application. A successful connection check does not approve a task;
-actual nonempty tests after the last write and independent review are required.
-
-## Release checks and advanced use
-
-A published release includes its exact Microsoft Defender scan report, SHA256SUMS,
-dependency/source audits, SBOM and GitHub build attestation. Publication requires
-Linux/Windows tests, an actual Windows GUI construction check, a clean runtime
-installation and Defender scans of the ZIP and installed Python/browser payload.
+Published releases include SHA256SUMS, Defender archive/installed-payload results,
+a dependency audit, source scan, SBOM and GitHub build provenance. Windows CI
+checks managed bootstrap, actual GUI/runtime/browser, COM shortcut and ICO decode.
 A checksum proves integrity, not universal antivirus acceptance. Source remains
-unsigned. If protection reports a threat, keep it enabled and inspect Protection
-history; do not add exclusions or restore the withdrawn diagnostic patch.
+unsigned. Keep protection enabled; inspect Protection history if a threat is
+reported. Do not add exclusions or restore the withdrawn diagnostic patch.
 
-The BAT entry points verify the release manifest in isolated Python mode before
-application imports. A reviewed update retains local `.venv`, `.aass` and private
-files; a changed dependency fingerprint triggers hash-verified wheel reinstall.
-Use complete release files. Local `.env` files are Git-ignored and excluded from
-release packaging. Keep them out of engineering target projects.
-
-Advanced automation remains available through `Install-AASS.bat --help`,
-`python install_aass.py`, `python local_app.py` (legacy terminal menu) and
-`python -m orchestration_canvas`. Local stage logs/status are in `.aass`.
-Only designated model-client subprocesses receive API keys. Package, daemon,
-browser and worker-tool children have credentials stripped. Share specific
-sanitized stage/status messages rather than environment dumps or private files.
-
-## Gemini checks in 1.2.1
-
-Gemini model discovery and judging use the native generateContent API. Old
-Google OpenAI-compatible URLs are migrated in memory; you do not need to rewrite
-your private file. A cloud failure log now includes the exact model and API route.
-If a listed model still returns 404, select another listed text model and retry
-Test connections. The successful worker check is reused; packages stay installed.
-Only explicit tests/runs make generation requests, and account restrictions or
-quota still need to be resolved with Google when reported.
-
-## Update an already-installed 1.2.0 to 1.2.1
-
-Close AASS. Download and extract the complete 1.2.1 release. Open its inner folder
-containing Start-AASS.bat, then copy that folder's contents into your existing
-application folder and choose Replace files. Copy the contents rather than
-nesting the new folder inside the old one. The release contains no .venv, .aass
-or private .env files, so those existing local files remain in place.
-Double-click Start-AASS.bat and Test connections. This source-only patch uses the
-same locked dependencies; preparing Docker, Ollama and all packages again is
-unnecessary. If you instead choose a fresh folder, use Install-AASS.bat there and
-select your existing private credentials file when prompted.
+Application status/logs, update plans and the latest rollback copy live in `.aass`
+inside the permanent installation. Share sanitized stage/status messages, never
+private credential files or environment dumps. The native CLI remains available
+for advanced automation. See [install/update plan](INSTALL-UPDATE-PLAN.md).

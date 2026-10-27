@@ -15,8 +15,9 @@ separate observable evidence.
 The runtime lock contains exact SHA-256 wheel hashes and pinned build tools.
 Installation uses `--require-hashes --only-binary=:all:`. The reviewed source is
 installed with `--no-deps --no-build-isolation`; no implicit build dependencies are
-fetched. On a changed fingerprint, wheels are reinstalled from verified artifacts
-instead of trusting an old installed version number. Development/PostgreSQL and
+fetched. Dependency-lock or interpreter changes reinstall verified wheels. Application
+version/source changes reuse those wheels and refresh application metadata as
+needed. Separate atomic dependency/application/browser markers record success. Development/PostgreSQL and
 security-audit tools have separate locks and are not part of end-user setup.
 
 ## Models and settings
