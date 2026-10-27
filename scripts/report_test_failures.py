@@ -3,9 +3,15 @@
 import re
 import sys
 import xml.etree.ElementTree as ET
+from pathlib import Path
 
 
 def main(path):
+    if not Path(path).is_file():
+        print(
+            "::error title=Windows tests::The test process did not produce a complete JUnit report; inspect retained output and process exit."
+        )
+        return
     root = ET.parse(path).getroot()  # nosec B314 # trusted local pytest output
     for case in root.iter("testcase"):
         for failure in list(case.findall("failure")) + list(case.findall("error")):

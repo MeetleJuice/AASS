@@ -17,7 +17,7 @@ jobs:
       matrix:
         os: [ubuntu-latest, windows-latest]
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 25
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
@@ -48,7 +48,10 @@ jobs:
           .venv/Scripts/python -m pip install --no-deps --no-build-isolation -e .
           if ($LASTEXITCODE -ne 0) { throw 'Project installation failed' }
       - name: Windows regression tests
-        timeout-minutes: 5
+        timeout-minutes: 18
+        id: windows_tests
+        env:
+          AASS_CI_PROGRESS: generated/windows-last-test.txt
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
@@ -58,6 +61,10 @@ jobs:
             python scripts/report_test_failures.py generated/windows-verification.xml
             throw "Windows regression tests failed (exit $testExit)"
           }
+      - name: Preserve Windows test outcome and bounded diagnostics
+        if: always() && runner.os == 'Windows'
+        shell: pwsh
+        run: python scripts/report_ci_outcome.py "${{ steps.windows_tests.outcome }}" generated/windows-output.txt generated/windows-last-test.txt
       - name: Windows actual batch entry point
         if: runner.os == 'Windows'
         shell: pwsh

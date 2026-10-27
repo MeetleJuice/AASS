@@ -8,6 +8,7 @@ import signal
 import subprocess
 import threading
 import time
+from pathlib import Path
 
 
 def main():
@@ -15,6 +16,7 @@ def main():
     parser.add_argument("--python", required=True)
     parser.add_argument("--junitxml", required=True)
     parser.add_argument("--timeout", type=float, default=120)
+    parser.add_argument("--output", default="generated/windows-output.txt")
     parser.add_argument("tests", nargs="*")
     args = parser.parse_args()
     command = [
@@ -24,12 +26,17 @@ def main():
         "pytest",
         "-vv",
         "-s",
+        "-p",
+        "scripts.ci_test_progress",
         "--junitxml=" + args.junitxml,
         *args.tests,
     ]
     process = subprocess.Popen(
         command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, start_new_session=os.name != "nt"
     )
+    output_path = Path(args.output)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_bytes(b"")
     chunks = queue.Queue()
 
     def read():
@@ -48,7 +55,10 @@ def main():
     while not ended or process.poll() is None:
         if time.monotonic() > deadline:
             safe = current.split("[", 1)[0].replace("\r", "").replace("\n", "")[:300]
-            print("::error title=Windows test timeout::Stalled check: " + safe, flush=True)
+            print(
+                "::error title=Windows test timeout::Last started check at timeout: " + safe,
+                flush=True,
+            )
             if os.name == "nt":
                 subprocess.run(
                     ["taskkill", "/PID", str(process.pid), "/T", "/F"],
@@ -69,6 +79,10 @@ def main():
         if chunk is None:
             ended = True
             continue
+        if output_path.stat().st_size + len(chunk) > 2 * 1024 * 1024:
+            output_path.write_bytes(b"")
+        with output_path.open("ab") as log:
+            log.write(chunk)
         text = chunk.decode("utf-8", errors="replace")
         print(text, end="", flush=True)
         tail = (tail + text)[-32768:]
