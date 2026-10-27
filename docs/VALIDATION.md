@@ -1,3 +1,30 @@
+# AASS 1.3.0 published and verified
+
+Published release: https://github.com/MeetleJuice/AASS/releases/tag/v1.3.0-0c1d26c
+Download: https://github.com/MeetleJuice/AASS/releases/download/v1.3.0-0c1d26c/AASS-1.3.0.zip
+Source revision: 0c1d26c. Verification run:
+https://github.com/MeetleJuice/AASS/actions/runs/40604110812 — SUCCESS.
+
+All mandatory Linux, security, Windows regression, BAT, clean managed-runtime,
+GUI, custom-icon, production update and Defender gates passed. Publication used
+the exact gated artifact. An independent download of the ZIP and six release
+assets (ZIP plus five evidence files) passed the matching evidence validator and
+matched the clean local build byte for byte. Defender reports zero detections,
+including the installed runtime and browser scans. SHA-256:
+`b197fe8a237005a4df385950de680e84320f2008084b8c8038ce7afbd97d0ef3`.
+
+The final CI correction explicitly initializes COM around independent shortcut
+inspection. Production shortcut persistence uses the Unicode shell interface.
+The timeout assertions and oversized-icon payload remain intact; no tests or
+release gates were disabled. Local suite: 436 passed, 3 Windows-only skips.
+
+Final acceptance on the user's physical Windows 10 PC, live Ollama generation
+and the user's independent cloud account still require the user's first task.
+See [the first-task guide](FIRST-TASK.md). No additional features are planned
+before that acceptance result. Earlier entries below are historical snapshots.
+
+---
+
 # Current 1.3.0 candidate status
 
 Pre-publication snapshot, October 27, 2026. Later successful checks and matching
