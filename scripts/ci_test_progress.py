@@ -11,7 +11,11 @@ def pytest_runtest_logstart(nodeid, location):
     if destination:
         path = Path(destination)
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(nodeid.split("[", 1)[0][:1000], encoding="utf-8")
+        # nodeid can include collection prefixes for files outside rootdir.
+        # pytest supplies the actual source path and qualified test name separately.
+        filename = location[0].replace("\\", "/").rsplit("/", 1)[-1]
+        function = location[2].split("[", 1)[0].replace(".", "::")
+        path.write_text((filename + "::" + function)[:1000], encoding="utf-8")
 
 
 def pytest_runtest_logreport(report):

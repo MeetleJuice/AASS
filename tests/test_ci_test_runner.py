@@ -199,3 +199,17 @@ def test_zero_test_collection_does_not_pass_release_gate(tmp_path):
     assert result.returncode != 0
     assert receipt["child_returncode"] == 5
     assert receipt["wrapper_returncode"] != 0
+
+
+def test_breadcrumb_uses_structured_location_for_external_windows_collection(tmp_path, monkeypatch):
+    from scripts.ci_test_progress import pytest_runtest_logstart
+    from scripts.run_windows_tests import _progress
+
+    path = tmp_path / "progress.txt"
+    monkeypatch.setenv("AASS_CI_PROGRESS", str(path))
+    pytest_runtest_logstart(
+        "external-collection::not-a-source-node-id",
+        (r"D:\temporary\test_runner_fixture.py", 3, "test_slow[private-parameter]"),
+    )
+    assert path.read_text(encoding="utf-8") == "test_runner_fixture.py::test_slow"
+    assert _progress(path)[1] == "test_runner_fixture.py::test_slow"

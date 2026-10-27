@@ -192,7 +192,9 @@ def test_incomplete_release_never_creates_shortcut(application, missing):
 
 
 @pytest.mark.parametrize(
-    "content", [b"", b"not an icon", b"\x00\x00\x01\x00\x00\x00", b"X" * (1024 * 1024 + 1)]
+    "content",
+    [b"", b"not an icon", b"\x00\x00\x01\x00\x00\x00", b"X" * (1024 * 1024 + 1)],
+    ids=["empty", "invalid-header", "zero-images", "oversized"],
 )
 def test_invalid_icon_is_reported_before_desktop_is_modified(application, content):
     root, target_desktop, _ = application
