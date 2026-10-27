@@ -51,7 +51,7 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          .venv/Scripts/python -m pytest -p scripts.windows_test_watchdog -q --junitxml=generated/windows-verification.xml
+          python scripts/run_windows_tests.py --python .venv/Scripts/python.exe --junitxml generated/windows-verification.xml
           $testExit = $LASTEXITCODE
           if ($testExit -ne 0) {
             python scripts/report_test_failures.py generated/windows-verification.xml
