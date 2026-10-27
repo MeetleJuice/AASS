@@ -2,13 +2,15 @@
 
 Use a published release that has passed its Windows checks; see the dated
 [release readiness](RELEASE-READINESS.md) record and the release's attached evidence.
-This guide describes its existing desktop interface, not a claim that your PC
-has already passed installation.
+This guide describes the existing desktop task interface, not a claim that your
+PC has already passed installation. Version 1.2.1 uses the same task workflow
+but starts from its extracted folder and has no desktop icon or Update button.
 
 ## Open and connect
 
-1. Open **AASS** from its desktop icon. If the icon could not be created, open
-   **Start-AASS.bat** in `%LOCALAPPDATA%\Programs\AASS`.
+1. For 1.3.0, open **AASS** from its desktop icon, or **Start-AASS.bat** in
+   `%LOCALAPPDATA%\Programs\AASS`. For 1.2.1, open **Start-AASS.bat** in the
+   extracted release folder; keep that folder in place after installation.
 2. On **1. Setup**, use **Prepare / check this PC** if local preparation has not
    passed. Existing Python packages, Docker images and Ollama models are reused
    when their checks pass. Docker Desktop must have a running Linux engine.
@@ -76,9 +78,10 @@ Keep `.aass` private. If the task stops, source edits remain for inspection.
 Correct the named service/configuration problem or submit a smaller repair task;
 do not treat remaining files alone as proof of success.
 
-Close AASS, reopen it from the icon, and choose **AASS-first-task** again when you
-want another task. Files and history remain on disk. The app does not automatically
-resume an interrupted run or restore the previous task form.
+Close AASS, reopen it using the version-appropriate launcher above, and choose
+**AASS-first-task** again when you want another task. Files and history remain on
+disk. The app does not automatically resume an interrupted run or restore the
+previous task form.
 
 ## Other realistic tasks
 
