@@ -6,7 +6,7 @@ on:
   pull_request:
   workflow_dispatch:
 concurrency:
-  group: aass-${{ github.ref }}
+  group: aass-desktop-${{ github.ref }}
   cancel-in-progress: true
 permissions:
   contents: read
@@ -48,6 +48,7 @@ jobs:
           .venv/Scripts/python -m pip install --no-deps --no-build-isolation -e .
           if ($LASTEXITCODE -ne 0) { throw 'Project installation failed' }
       - name: Windows regression tests
+        timeout-minutes: 5
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
