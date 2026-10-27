@@ -97,16 +97,70 @@ def desktop_directory():
     return path
 
 
+class _UnicodeShortcut:
+    """Use IShellLinkW; WScript.Shell can persist arguments through ANSI."""
+
+    def __init__(self, path):
+        import pythoncom
+        from win32com.shell import shell
+
+        self._path = str(path)
+        self._link = pythoncom.CoCreateInstance(
+            shell.CLSID_ShellLink, None, pythoncom.CLSCTX_INPROC_SERVER, shell.IID_IShellLink
+        )
+        self._file = self._link.QueryInterface(pythoncom.IID_IPersistFile)
+        if Path(path).is_file():
+            self._file.Load(str(path), 0)
+
+    @property
+    def TargetPath(self):
+        from win32com.shell import shell
+
+        return self._link.GetPath(shell.SLGP_RAWPATH)[0]
+
+    @TargetPath.setter
+    def TargetPath(self, value):
+        self._link.SetPath(value)
+
+    @property
+    def IconLocation(self):
+        path, index = self._link.GetIconLocation()
+        return path + "," + str(index)
+
+    @IconLocation.setter
+    def IconLocation(self, value):
+        path, index = value.rsplit(",", 1)
+        self._link.SetIconLocation(path, int(index))
+
+    def Save(self):
+        self._file.Save(self._path, 1)
+
+
+def _link_property(getter, setter):
+    return property(
+        lambda self: getattr(self._link, getter)(),
+        lambda self, value: getattr(self._link, setter)(value),
+    )
+
+
+for _name, _getter, _setter in (
+    ("Arguments", "GetArguments", "SetArguments"),
+    ("WorkingDirectory", "GetWorkingDirectory", "SetWorkingDirectory"),
+    ("Description", "GetDescription", "SetDescription"),
+    ("WindowStyle", "GetShowCmd", "SetShowCmd"),
+):
+    setattr(_UnicodeShortcut, _name, _link_property(_getter, _setter))
+
+
 @contextlib.contextmanager
 def _shortcut_shell():
-    # pywin32 is already hash-pinned in the Windows runtime lock. Imports remain
-    # lazy so the installer itself still starts with the Python standard library.
+    from types import SimpleNamespace
+
     import pythoncom
-    import win32com.client
 
     pythoncom.CoInitialize()
     try:
-        yield win32com.client.Dispatch("WScript.Shell")
+        yield SimpleNamespace(CreateShortcut=_UnicodeShortcut)
     finally:
         pythoncom.CoUninitialize()
 
@@ -253,7 +307,7 @@ def create_shortcut(
             )
             os.close(descriptor)
             temporary = Path(name)
-            temporary.unlink()  # WScript.Shell creates the new link itself.
+            temporary.unlink()  # The native shell interface creates the new link itself.
             link = shell.CreateShortcut(str(temporary))
             link.TargetPath = str(target)
             link.WorkingDirectory = str(root)
