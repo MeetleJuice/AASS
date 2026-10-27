@@ -367,6 +367,21 @@ def test_model_choice_never_invents_a_provider_model():
     )
 
 
+def test_shortcut_failure_keeps_local_installation_ready(wizard_factory):
+    app, controller, _ = wizard_factory()
+    path = app.root / ".aass/setup-status.json"
+    path.parent.mkdir(exist_ok=True)
+    path.write_text(
+        json.dumps({"status": "installed_live_unverified", "desktop_shortcut": {"ready": False}}),
+        encoding="utf-8",
+    )
+    app.installed(CommandResult(2, "shortcut failed"))
+    settle(app)
+    assert app.local_ready
+    assert "desktop icon" in app.local_status.get()
+    assert "Docker virtualization" not in app.local_status.get()
+
+
 def test_cloud_check_log_identifies_selected_model_and_route(wizard_factory):
     app, controller, _ = wizard_factory()
     select_model(app)

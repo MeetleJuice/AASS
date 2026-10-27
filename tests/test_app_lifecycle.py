@@ -537,3 +537,42 @@ def test_predictable_copy_temporary_link_cannot_overwrite_external_file(tmp_path
     lifecycle._copy_files(source, target, ["app.py"])
     assert sentinel.read_text() == "keep me"
     assert (target / "app.py").read_text() == "new source"
+
+
+def test_fresh_installer_recovers_interrupted_source_before_verification(managed, monkeypatch):
+    runtime = runtime_fixture(managed.root)
+    backup = managed.root / ".aass/update-backups" / ("d" * 32)
+    shutil.copytree(managed.source, backup / "source")
+    shutil.copytree(runtime, backup / "runtime", symlinks=True)
+    private = managed.directory / "chosen private.env"
+    private.write_text(f"GEMINI_API_KEY={SECRET}\n")
+    json_write(managed.root / ".aass/credentials.json", {"path": str(private)})
+    json_write(managed.root / ".aass/provider.json", {"service": "gemini", "model": "keep-model"})
+    json_write(
+        managed.root / ".aass/update-transaction.json",
+        {
+            "format": 1,
+            "phase": "applying",
+            "backup": str(backup),
+            "new_files": ["unfinished.py"],
+            "runtime_existed": True,
+        },
+    )
+    (managed.root / "app.py").write_text("interrupted source replacement")
+    (managed.root / "unfinished.py").write_text("partial new file")
+    library = runtime / "Lib/site-packages/reviewed-library.pyd"
+    library.write_bytes(b"interrupted wheel replacement")
+    incoming = new_release(managed)
+    checked = []
+
+    def checks(root, _callback):
+        checked.append(verify(root)["version"])
+        assert library.read_bytes() == b"original library bytes"
+
+    monkeypatch.setattr(lifecycle, "_runtime_checks", checks)
+    assert lifecycle.install_source(incoming, managed.root) == managed.root
+    assert checked == ["1.3.1"]
+    assert verify(managed.root)["source_revision"] == NEW_REVISION
+    assert not (managed.root / "unfinished.py").exists()
+    assert selected_credentials_file(managed.root) == private
+    assert provider_preferences(managed.root)["model"] == "keep-model"

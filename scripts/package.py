@@ -47,6 +47,8 @@ FILES = [
     "telemetry.py",
     "verify_release.py",
     "docs/WINDOWS-INSTALL.md",
+    "docs/FIRST-TASK.md",
+    "docs/RELEASE-READINESS.md",
     "docs/SECURITY-REVIEW.md",
     "docs/RELEASE-NOTES.md",
     "docs/OPERATIONS.md",

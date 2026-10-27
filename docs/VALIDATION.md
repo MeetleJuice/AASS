@@ -1,3 +1,28 @@
+# Current 1.3.0 candidate status
+
+Pre-publication snapshot, October 27, 2026. Later successful checks and matching
+evidence attached to a published release supersede the pending release entries.
+
+**Windows release verification is pending.** The clean Windows installation,
+custom desktop icon and exact-artifact Defender gates have not supplied the
+successful outcome required to publish 1.3.0. The observed
+[workflow](https://github.com/MeetleJuice/AASS/actions/runs/40558504707) reached its
+maximum duration; no particular test is identified as the cause from that fact.
+See [release readiness](RELEASE-READINESS.md) for the acceptance boundaries.
+
+Local verification: **435 passed, 3 Windows-only skips**, with Docker, Chromium,
+MCP and PostgreSQL integrations enabled; dependency consistency, Ruff and the
+Bandit medium/high gate passed. The full
+worker/Docker/review protocol exercise uses deterministic model responses;
+**live Ollama plus a real independent cloud judge is NOT VERIFIED here**.
+The user's physical Windows 10 PC has not been tested by this environment.
+
+The sections below are dated development/release history, including earlier
+states in which Windows CI had not yet run. They do not override this current
+1.3.0 verdict or establish acceptance on the user's PC.
+
+---
+
 # Gemini native API correction 1.2.1
 
 Published as [v1.2.1-624a13b](https://github.com/MeetleJuice/AASS/releases/tag/v1.2.1-624a13b).

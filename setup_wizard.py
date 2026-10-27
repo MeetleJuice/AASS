@@ -475,6 +475,34 @@ class SetupWizard:
             self.error(result)
             return
         if not result.ok:
+            try:
+                path = self.root / ".aass/setup-status.json"
+                report = (
+                    json.loads(path.read_text(encoding="utf-8"))
+                    if path.is_file() and path.stat().st_size <= 65536
+                    else {}
+                )
+            except (OSError, ValueError):
+                report = {}
+            if (
+                isinstance(report, dict)
+                and report.get("status")
+                in {
+                    "ready",
+                    "installed_needs_configuration",
+                    "installed_live_unverified",
+                    "installed_cloud_unverified",
+                }
+                and isinstance(report.get("desktop_shortcut"), dict)
+                and report["desktop_shortcut"].get("ready") is False
+            ):
+                self.local_ready = True
+                message = "Local tools passed. Windows could not create the desktop icon. Use Start-AASS.bat in the installed folder, or retry Prepare / check to create the icon."
+                self.local_status.set(message)
+                self.notice.set(message)
+                self.append(message)
+                self.refresh()
+                return
             self.local_ready = False
             self.local_status.set(
                 "Local setup needs attention. The final stage in the progress below explains what to fix. Then click Prepare / check again."

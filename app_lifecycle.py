@@ -578,6 +578,9 @@ def install_source(source, target, callback=None):
         raise LifecycleError("unverified_source", "Install a complete clean verified release.")
     if target.exists() and any(target.iterdir()):
         _managed(target)
+        # A fresh installer is also a recovery entry point. Restore a pending
+        # transaction before attempting to verify its possibly partial source.
+        recover_pending(target)
         current = verify(target)
         if current["source_revision"] != manifest["source_revision"]:
             apply_transaction(target, source, callback)

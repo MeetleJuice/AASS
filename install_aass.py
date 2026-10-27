@@ -441,6 +441,54 @@ def sandbox_smoke():
         return 0 if result.returncode == 0 and "Ran 1 test" in result.stderr else 2
 
 
+def finish_desktop_shortcut(installer):
+    """Keep successful local checks if only Windows desktop integration fails."""
+    from desktop_integration import ShortcutError, create_shortcut
+    from telemetry import atomic_json
+
+    installer.say("[AASS] Creating your custom AASS desktop icon...")
+    path = installer.state / "setup-status.json"
+    previous = {}
+    try:
+        if path.is_file() and not path.is_symlink() and path.stat().st_size <= 65536:
+            previous = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        pass
+    if not isinstance(previous, dict):
+        previous = {}
+    status = previous.get("status", "installed_live_unverified")
+    if status not in {
+        "ready",
+        "installed_needs_configuration",
+        "installed_live_unverified",
+        "installed_cloud_unverified",
+    }:
+        status = "installed_live_unverified"
+    checks = previous.get("checks", {})
+    if not isinstance(checks, dict):
+        checks = {}
+    try:
+        shortcut = create_shortcut(installer.root)
+    except (ShortcutError, OSError, subprocess.SubprocessError) as error:
+        hint = (
+            "Local installation passed, but the desktop icon needs attention. "
+            "Open Start-AASS.bat in the installed application folder, or retry "
+            "Prepare / check this PC after resolving the shortcut issue. "
+            "Do not reinstall Docker or Ollama."
+        )
+        installer.say(hint)
+        if isinstance(error, ShortcutError):
+            installer.say(str(error))
+        installer.status(status, checks=checks, desktop_shortcut={"ready": False, "hint": hint})
+        atomic_json(installer.state / "shortcut.json", {"ready": False, "hint": hint})
+        return 2
+    installer.say("[AASS] Desktop icon ready: " + str(shortcut))
+    receipt = {"path": str(shortcut), "ready": True}
+    atomic_json(installer.state / "shortcut.json", receipt)
+    installer.status(status, checks=checks, desktop_shortcut=receipt)
+    return 0
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     live = parser.add_mutually_exclusive_group()
@@ -475,15 +523,7 @@ def main():
                 and os.name == "nt"
                 and (installer.state / "managed-install.json").is_file()
             ):
-                from desktop_integration import create_shortcut
-
-                installer.say("[AASS] Creating your custom AASS desktop icon...")
-                shortcut = create_shortcut(installer.root)
-                installer.say("[AASS] Desktop icon ready: " + str(shortcut))
-                atomic = {"path": str(shortcut), "ready": True}
-                from telemetry import atomic_json
-
-                atomic_json(installer.state / "shortcut.json", atomic)
+                return finish_desktop_shortcut(installer)
             return result
     except KeyboardInterrupt:
         installer.say("Setup cancelled. Double-click Install-AASS.bat to retry.")

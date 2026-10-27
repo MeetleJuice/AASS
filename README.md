@@ -4,6 +4,10 @@ A bounded Python engineering agent with a local Ollama worker, isolated
 Docker tests, persistent failure history, and an independent cloud review gate.
 Preferred local model: **qwen3.5:9b**. Current version: **1.3.0**, with guided Windows setup.
 
+Use a **published release with matching verification evidence**. Development
+source alone is not proof of a working Windows release. See the dated
+[readiness and limitations](docs/RELEASE-READINESS.md) record.
+
 ## Windows installation
 
 Use the ZIP from **[GitHub Releases](https://github.com/MeetleJuice/AASS/releases)**,
@@ -80,6 +84,8 @@ PostgreSQL test and audit tools have separate locks; end-user setup does not
 install them. TLS and artifact verification remain enabled.
 
 - [Windows instructions](docs/WINDOWS-INSTALL.md)
+- [First task walkthrough](docs/FIRST-TASK.md)
+- [Current release readiness and limitations](docs/RELEASE-READINESS.md)
 - [Operations](docs/OPERATIONS.md)
 - [Architecture and trust boundaries](docs/ARCHITECTURE.md)
 - [Remediation plan](docs/REMEDIATION-PLAN.md)

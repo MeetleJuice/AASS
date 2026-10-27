@@ -90,6 +90,8 @@ jobs:
           python (Join-Path $managed 'setup_wizard.py') --smoke-test
           if ($LASTEXITCODE -ne 0) { throw 'Managed setup window failed before dependencies were installed' }
           if (Test-Path (Join-Path $managed '.venv')) { throw 'Bootstrap unexpectedly relocated or created a runtime' }
+          $sourceRoot = $root
+          $root = $managed
           $env:PLAYWRIGHT_BROWSERS_PATH = Join-Path $root '.aass/browsers'
           python (Join-Path $root 'launch_aass.py') --install-only
           if ($LASTEXITCODE -ne 0) { throw 'Clean end-user runtime installation failed' }
@@ -130,6 +132,8 @@ jobs:
           $probe = "import os, mcp, httpx, filelock, win32api; os.environ['AASS_JUDGE_API_KEY']='fixture-not-real'; from orchestration_canvas import doctor; result=doctor(); assert result['checks']['chromium']['ready'], result; print('Clean Windows runtime, isolated browser helper and Chromium verified')"
           & $runtime -c $probe
           if ($LASTEXITCODE -ne 0) { throw 'Clean Windows runtime/browser verification failed' }
+          python scripts/check_installed_update.py --root $root --source $sourceRoot
+          if ($LASTEXITCODE -ne 0) { throw 'Packaged runtime update verification failed' }
           python (Join-Path $root 'verify_release.py') --root $root
           if ($LASTEXITCODE -ne 0) { throw 'Release sources changed during installation' }
           Add-Content -Path $env:GITHUB_ENV -Value "AASS_SCAN_PAYLOAD=$root"

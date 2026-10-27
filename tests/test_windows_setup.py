@@ -176,3 +176,54 @@ def test_existing_preferred_ollama_model_is_reused(installer, monkeypatch, capsy
 @pytest.mark.skipif(os.environ.get("AASS_INTEGRATION") != "1", reason="set AASS_INTEGRATION=1")
 def test_installer_sandbox_gate_runs_real_nonzero_test():
     assert sandbox_smoke() == 0
+
+
+@pytest.mark.parametrize("error_type", ["shortcut", "os", "timeout"])
+def test_shortcut_failure_preserves_successful_local_checks_and_has_safe_retry_hint(
+    installer, monkeypatch, capsys, error_type
+):
+    import desktop_integration
+    from install_aass import finish_desktop_shortcut
+
+    checks = {"docker": {"ready": True}, "chromium": {"ready": True}}
+    installer.status("installed_needs_configuration", checks=checks)
+
+    def fail(_root):
+        if error_type == "shortcut":
+            raise desktop_integration.ShortcutError("An unrelated AASS shortcut already exists.")
+        if error_type == "os":
+            raise OSError("private fixture must not be logged")
+        import subprocess
+
+        raise subprocess.TimeoutExpired(["private fixture command"], 30)
+
+    monkeypatch.setattr(desktop_integration, "create_shortcut", fail)
+    assert finish_desktop_shortcut(installer) == 2
+    report = json.loads((installer.state / "setup-status.json").read_text(encoding="utf-8"))
+    assert report["status"] == "installed_needs_configuration"
+    assert report["checks"] == checks
+    assert report["desktop_shortcut"]["ready"] is False
+    assert "Start-AASS.bat" in report["desktop_shortcut"]["hint"]
+    assert "Prepare / check" in report["desktop_shortcut"]["hint"]
+    output = capsys.readouterr().out
+    assert "Local installation passed" in output
+    assert "private fixture" not in output
+    assert "Traceback" not in output
+
+
+def test_shortcut_success_records_ready_receipt_without_losing_model_verification(
+    installer, monkeypatch
+):
+    import desktop_integration
+    from install_aass import finish_desktop_shortcut
+
+    checks = {"docker": {"ready": True}, "judge_configuration": {"ready": True}}
+    installer.status("ready", checks=checks)
+    shortcut = installer.root / "AASS.lnk"
+    monkeypatch.setattr(desktop_integration, "create_shortcut", lambda _root: shortcut)
+    assert finish_desktop_shortcut(installer) == 0
+    report = json.loads((installer.state / "setup-status.json").read_text(encoding="utf-8"))
+    assert report["status"] == "ready"
+    assert report["checks"] == checks
+    assert report["desktop_shortcut"] == {"ready": True, "path": str(shortcut)}
+    assert json.loads((installer.state / "shortcut.json").read_text())["ready"] is True
