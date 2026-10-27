@@ -45,6 +45,29 @@ The job needs usable runner/test diagnostics and a successful complete rerun;
 mandatory checks remain enabled. Further delivery must use the tested release
 artifact, not a newly rebuilt or unverified ZIP.
 
+The finalization fixes are committed as `448b445`: rerunning the installer now
+recovers an interrupted source replacement before verification, desktop-icon
+errors preserve successful local setup, and the CI monitor remains bounded when
+its log consumer blocks. The full suite also passed through that process monitor:
+435 passed, 3 Windows-only skips, native/wrapper exit 0 and complete output.
+
+The clean package from that revision was independently extracted and installed in
+a new permanent test root on Linux. The production same-revision update reused
+dependencies and preserved private file/provider selections. A deliberately
+broken setup subprocess exited 17; production recovery restored source and the
+real runtime, after which Chromium, dependency and manifest checks passed.
+These checks did not exercise GitHub download, Windows GUI restart or real model
+generation. Candidate ZIP SHA-256:
+`39f5b9bf7dc8622e24cad6d9c5f13ffc60f97504645819946b0de2d79b9d6600`.
+
+The [new verification run](https://github.com/MeetleJuice/AASS/actions/runs/40598498697)
+has passed Linux and security checks; its Windows result remains pending at this
+snapshot. Authenticated diagnostics are currently blocked by the cloud proxy's
+CONNECT 403 denial for `api.github.com`. That domain addition is saved in the
+cloud-environment draft; saving alone has not enabled access in this runtime.
+Public job pages require sign-in for logs and supply no particular failing test.
+Do not bypass verification or infer a root cause from the elapsed time.
+
 The previously published
 [1.2.1 ZIP](https://github.com/MeetleJuice/AASS/releases/download/v1.2.1-624a13b/AASS-1.2.1.zip)
 has historical Windows and scan evidence recorded in [validation](VALIDATION.md).
