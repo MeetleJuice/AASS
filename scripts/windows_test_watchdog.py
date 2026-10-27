@@ -1,6 +1,7 @@
 """Bound each Windows CI test and expose its safe name in GitHub annotations."""
 
 import os
+import sys
 import threading
 
 _timer = None
@@ -14,7 +15,11 @@ def pytest_runtest_setup(item):
     timeout = max(1, min(120, int(os.environ.get("AASS_CI_TEST_TIMEOUT", "120"))))
 
     def stalled():
-        print("::error title=Windows test timeout::Test exceeded its deadline: " + name, flush=True)
+        print(
+            "::error title=Windows test timeout::Test exceeded its deadline: " + name,
+            file=sys.__stdout__,
+            flush=True,
+        )
         os._exit(124)
 
     _timer = threading.Timer(timeout, stalled)
