@@ -1,3 +1,26 @@
+# AASS 1.3.2 published and verified
+
+Official ZIP:
+https://github.com/MeetleJuice/AASS/releases/download/v1.3.2-e0d0cfa/AASS-1.3.2.zip
+Source: e0d0cfa. Complete mandatory verification:
+https://github.com/MeetleJuice/AASS/actions/runs/40722980744 — SUCCESS (3m 2s).
+
+Native Windows regression, actual BAT, clean managed installation, GUI, browser,
+shortcut, production update and Defender gates passed. Linux integrations and
+security gates passed. All six published assets were independently downloaded;
+release evidence matches the source revision and exact ZIP. The published ZIP
+matches the clean local deterministic build. Defender reports zero detections.
+SHA-256: `b8e811e510af5181446b1be00a336a3eb66ff038f4f6707080d158a669a623e4`.
+
+Local suite: 476 passed, three Windows-only skips. Mixed rewrite/protocol recovery
+is replayed through real Docker calculator tests with fixture model decisions
+and judge approval. Live Ollama/Gemini task completion on the user's Windows 10
+machine still requires confirmation. Existing private settings remain preserved.
+
+Earlier entries below are historical snapshots, not the current verdict.
+
+---
+
 # AASS 1.3.2 candidate — worker rewrite recovery
 
 The supplied first-task trajectory confirmed six calculator rewrites alternating
