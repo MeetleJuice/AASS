@@ -28,9 +28,9 @@ The earlier two-file draft is uncommitted work from this session, not user code.
 - [x] E: pulse/report.py. Review manifest, optional sections, metadata-only safe
   defaults, no arbitrary files, no automatic upload. Seeded secret/path/model
   text injection tests; validate ZIP names, sizes and reopening.
-- [ ] F: full tests with actual Docker/Postgres, lint/security; package installed
+- [x] F: full tests with actual Docker/Postgres, lint/security; package installed
   Pulse smoke/evaluation on native Windows, preserving existing all release gates.
-- [ ] G: commit/push; monitor automatically triggered complete verification;
+- [x] G: commit/push; monitor automatically triggered complete verification;
   publish only gated exact ZIP; independently verify assets. Physical Win10/live
   model acceptance remains explicitly unverified in this cloud environment.
 
@@ -49,3 +49,20 @@ Complete candidate suite: 497 passed, four Windows-only skips. Final focused
 real-tool checks: 59 passed; final report unit checks: 11 passed. Lint, format,
 medium/high source scan and diff checks passed. Native Windows
 UI, installed Pulse and all original gates remain mandatory before publication.
+
+
+## Delivery evidence
+
+Published AASS 1.4.0, source 9ab8de6. Automatically triggered full verification
+https://github.com/MeetleJuice/AASS/actions/runs/40734044224 passed all mandatory
+Linux/security/Windows/installed-Pulse/update/Defender/publication gates.
+Official six assets independently validated; ZIP matches local clean build,
+Defender zero detections. Source staging omission in the initial partial commit
+was corrected before acceptance; the complete candidate alone was published.
+ZIP: https://github.com/MeetleJuice/AASS/releases/download/v1.4.0-9ab8de6/AASS-1.4.0.zip
+SHA-256: 441128028d8aab4361192e6f72da38aa1fe2e6cbf69e8287676d4bc57c64c6c7.
+
+Physical Windows 10, audible destination-speaker output, RTX 3050 performance and
+live model/provider acceptance remain destination checks. They are not implied
+by deterministic fixtures or Windows Server CI. No additional runtime agents,
+models, dependencies, automatic paid evaluations or diagnostic uploads were added.

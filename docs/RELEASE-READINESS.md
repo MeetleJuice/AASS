@@ -1,3 +1,36 @@
+# AASS 1.4.0 Pulse published and verified
+
+Official release:
+https://github.com/MeetleJuice/AASS/releases/tag/v1.4.0-9ab8de6
+Download:
+https://github.com/MeetleJuice/AASS/releases/download/v1.4.0-9ab8de6/AASS-1.4.0.zip
+Tested source: 9ab8de6. Complete verification:
+https://github.com/MeetleJuice/AASS/actions/runs/40734044224 — SUCCESS (5m 6s).
+
+Mandatory Windows regressions (including native Pulse responsiveness/cancellation
+and completion dialog), actual BAT, clean managed installation, Pulse view smoke,
+packaged eight-case diagnostics/export/reopen, browser, icon, production update
+and Defender gates passed. Linux integrations and security gates passed.
+The six published assets were independently downloaded and checked against the
+exact tested source. Published ZIP matches the clean local deterministic build.
+Defender reports zero detections. SHA-256:
+`441128028d8aab4361192e6f72da38aa1fe2e6cbf69e8287676d4bc57c64c6c7`.
+
+Local complete suite: 497 passed, four Windows-only skips; final real-tool focused
+checks: 59 passed; final report checks: 11 passed. No local live Ollama/provider
+evaluation was performed. Default benchmark fixture success is harness evidence,
+not live model task completion. Physical Windows 10, RTX 3050 performance and
+live account review remain unverified here. Optional live runs require explicit
+consent and share the unchanged hard token/iteration ceiling.
+
+Update in the existing app, then click All Tests. Review Results lists the fixed
+sanitized inventory before Create Diagnostic ZIP; no source/private file/raw
+provider text or automatic upload is included. See PULSE.md and PULSE-PLAN.md.
+
+Earlier entries below are historical snapshots, not the current verdict.
+
+---
+
 # AASS 1.4.0 Pulse candidate
 
 Eight versioned, isolated diagnostic benchmarks; responsive All Tests view;
