@@ -1,3 +1,34 @@
+# AASS 1.3.1 published and verified
+
+Official ZIP:
+https://github.com/MeetleJuice/AASS/releases/download/v1.3.1-97b0d3a/AASS-1.3.1.zip
+Source: 97b0d3a. Complete verification:
+https://github.com/MeetleJuice/AASS/actions/runs/40610473070 — SUCCESS.
+
+Windows regression, actual BAT, installer-local UTF-16 discovery by reference,
+no-consent packaged backend, clean runtime/GUI/browser/icon, production update
+and Defender gates passed. Linux real integrations and security checks passed.
+The independently downloaded release and all matching evidence validate and the
+ZIP matches the clean local build. Defender reports zero detections. SHA-256:
+`29c7fa1395352b64aa1c8145f758d1b0cdca3173a77d10b968497f3c367ba605`.
+
+Local suite: 470 passed, 3 Windows-only skips. New provider protocols and automatic
+model fallback were exercised with fixtures, not live account credentials. The
+uploaded private file was excluded from source, logs, release and API requests.
+User-PC API access, quota and the 1.3.1 first task still need destination checks.
+
+For automatic cloud checks, explicitly opt in via
+`AASS_SETUP_ALLOW_BILLABLE_CHECK=1` in the private file. Set
+`AASS_JUDGE_SERVICE=gemini` (or the intended provider) for a fresh multi-key setup;
+a working saved choice is retained. Without consent, use Test connections once.
+Custom endpoints require a supported API protocol and explicit destination/key
+binding; unknown key names alone cannot establish an arbitrary API contract.
+See [automatic setup](AUTOMATIC-SETUP.md) for the policy and supported routes.
+
+Earlier entries below are historical snapshots, not the current verdict.
+
+---
+
 # AASS 1.3.1 candidate
 
 Scope: automatic installer-local credentials, explicit first-run cloud consent,
