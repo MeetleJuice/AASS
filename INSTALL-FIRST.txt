@@ -1,4 +1,4 @@
-AASS 1.3.0 - DESKTOP INSTALLATION
+AASS 1.3.1 - DESKTOP INSTALLATION
 ================================
 
 1. Extract the complete ZIP to a new folder on your Desktop.
@@ -20,3 +20,10 @@ Permanent installation: %LOCALAPPDATA%\Programs\AASS
 Status/recovery: .aass inside the installed application.
 Instructions: docs/WINDOWS-INSTALL.md and docs/INSTALL-UPDATE-PLAN.md
 Keep Windows protection enabled. Published releases include scan/checksum evidence.
+
+For automatic first-run cloud validation, explicitly opt in in your private file:
+AASS_SETUP_ALLOW_BILLABLE_CHECK=1
+AASS_JUDGE_SERVICE=gemini
+Use your intended provider ID if different. Up to three API review calls may be
+billed for a new configuration. Without consent, click Test connections once.
+See docs/AUTOMATIC-SETUP.md for providers and custom model endpoints.

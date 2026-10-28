@@ -134,7 +134,8 @@ def test_missing_worker_gives_install_action_without_generation(monkeypatch, cap
     assert api.main(["verify-worker"]) == 2
     report = json.loads(capsys.readouterr().out)
     assert report["code"] == "worker_model_missing"
-    assert "Prepare local tools" in report["hint"]
+    assert "in Ollama" in report["hint"]
+    assert "No large model is downloaded automatically" in report["hint"]
 
 
 def test_wrong_worker_action_does_not_pass(monkeypatch, capsys):

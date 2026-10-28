@@ -312,3 +312,39 @@ def test_launch_failure_has_actionable_sanitized_message(tmp_path):
         controller._execute([str(tmp_path / "missing-executable")], timeout=1)
     assert caught.value.code == "launch_failed"
     assert controller._execute([sys.executable, "-c", "pass"], timeout=5).ok
+
+
+@pytest.mark.parametrize(
+    ("code", "status", "accepted"),
+    [(0, "ready", True), (2, "ready", False), (2, "needs_action", True)],
+)
+def test_automatic_setup_status_crosses_controller_without_false_success(
+    tmp_path, monkeypatch, code, status, accepted
+):
+    controller = SetupController(tmp_path)
+    monkeypatch.setattr(controller, "_runtime", lambda: "runtime")
+    monkeypatch.setattr(
+        controller, "_execute", lambda *a, **kw: CommandResult(code, '{"status":"' + status + '"}')
+    )
+    if accepted:
+        assert controller.json_operation(["auto-setup"])["status"] == status
+    else:
+        with pytest.raises(ControllerError):
+            controller.json_operation(["auto-setup"])
+
+
+def test_task_passes_explicit_gui_provider_to_runtime(tmp_path, monkeypatch):
+    from settings import save_provider_preferences
+
+    controller = SetupController(tmp_path / "app")
+    controller.root.mkdir()
+    save_provider_preferences("groq", "chosen-model", controller.root)
+    monkeypatch.setattr(controller, "_runtime", lambda: "runtime")
+    commands = []
+    monkeypatch.setattr(
+        controller,
+        "_execute",
+        lambda command, **kw: commands.append(command) or CommandResult(0, "done"),
+    )
+    assert controller.run_task(tmp_path / "project", "Implement a function").ok
+    assert commands[0][3:6] == ["--judge-service", "groq", "run"]

@@ -2,11 +2,20 @@
 
 A bounded Python engineering agent with a local Ollama worker, isolated
 Docker tests, persistent failure history, and an independent cloud review gate.
-Preferred local model: **qwen3.5:9b**. Current version: **1.3.0**, with guided Windows setup.
+Preferred local model: **qwen3.5:9b**. Current version: **1.3.1**, with guided Windows setup.
 
 Use a **published release with matching verification evidence**. Development
 source alone is not proof of a working Windows release. See the dated
 [readiness and limitations](docs/RELEASE-READINESS.md) record.
+
+## Automatic first run
+
+Put your private `.env.txt` beside the extracted installer. Existing file
+references and selections are preserved; a newly supplied installer-local file
+is selected automatically. See [automatic setup and provider configuration](docs/AUTOMATIC-SETUP.md)
+for explicit first-run API consent, supported providers, custom model endpoints,
+bounded fallback and sanitized diagnostics. A custom endpoint must implement a
+supported model protocol; key names alone do not establish API compatibility.
 
 ## Windows installation
 
@@ -51,7 +60,7 @@ Recognized cloud keys are `OPENAI_API_KEY`, `GEMINI_API_KEY`/`GOOGLE_API_KEY`, a
 `ANTHROPIC_API_KEY`, or the explicit `AASS_JUDGE_API_KEY`/`AASS_JUDGE_MODEL` pair.
 The window saves only the selected file path and provider/model preference;
 keys stay in your private file or environment. Official API endpoints are validated before keys are sent.
-A trusted custom HTTPS provider requires an explicit environment allowlist.
+A trusted custom HTTPS provider requires an explicitly configured model-provider profile or process host allowlist.
 
 The cloud judge receives the task, changed code and test evidence. Only use it
 for source you permit that provider to receive. Local browser screenshots remain

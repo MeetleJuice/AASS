@@ -3,9 +3,12 @@
 import os
 from urllib.parse import urlsplit
 
+from provider_registry import CONFIG_NAMES, KEY_NAMES, approved_hosts, providers
+
 LOOPBACK_HOSTS = {"localhost", "127.0.0.1", "::1"}
 JUDGE_HOSTS = {"api.openai.com", "generativelanguage.googleapis.com", "api.anthropic.com"}
 CREDENTIAL_SETTINGS = {
+    "AASS_SETUP_ALLOW_BILLABLE_CHECK",
     "OLLAMA_HOST",
     "AASS_WORKER_MODEL",
     "AASS_JUDGE_API_KEY",
@@ -27,6 +30,11 @@ SECRET_NAMES = {
     "ANTHROPIC_API_KEY",
     "AASS_POSTGRES_DSN",
 }
+
+
+CREDENTIAL_SETTINGS.update(KEY_NAMES | CONFIG_NAMES)
+SECRET_NAMES.update(KEY_NAMES)
+SECRET_NAMES.update(key for row in providers().values() for key in row["keys"])
 
 
 def ollama_url(value=None):
@@ -67,7 +75,7 @@ def judge_url(value, provider="openai"):
         for host in os.environ.get("AASS_ALLOWED_JUDGE_HOSTS", "").split(",")
         if host.strip()
     }
-    if parsed.hostname not in JUDGE_HOSTS | custom:
+    if parsed.hostname not in JUDGE_HOSTS | custom | approved_hosts():
         raise ValueError(
             "Judge host is not approved. Set AASS_ALLOWED_JUDGE_HOSTS explicitly in the process environment for a trusted custom provider"
         )
@@ -116,7 +124,7 @@ def provider_preferences(root=None):
     if (
         not isinstance(data, dict)
         or set(data) - {"service", "model"}
-        or data.get("service") not in {"auto", "openai", "gemini", "anthropic"}
+        or data.get("service") not in {"auto", *providers()}
         or not isinstance(data.get("model", ""), str)
     ):
         raise ValueError("Invalid provider settings; choose the provider again in Start AASS")
@@ -129,9 +137,9 @@ def save_provider_preferences(service, model="", root=None):
 
     from telemetry import atomic_json
 
-    if service not in {"auto", "openai", "gemini", "anthropic"}:
+    if service not in {"auto", *providers()}:
         raise ValueError("Unknown provider selection")
-    if model and not re.fullmatch(r"[A-Za-z0-9_./:-]{1,128}", model):
+    if model and not re.fullmatch(r"[A-Za-z0-9@][A-Za-z0-9_./:@-]{0,255}", model):
         raise ValueError(
             "Model name must contain only letters, numbers, dots, slashes, colons or hyphens"
         )

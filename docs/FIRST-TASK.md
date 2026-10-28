@@ -6,9 +6,13 @@ This guide describes the existing desktop task interface, not a claim that your
 PC has already passed installation. Version 1.2.1 uses the same task workflow
 but starts from its extracted folder and has no desktop icon or Update button.
 
+For 1.3.1 automatic setup, see [the consent and provider settings](AUTOMATIC-SETUP.md).
+When automatic validation succeeds, the app opens the task tab directly. Use the
+manual steps below only if setup reports a required action.
+
 ## Open and connect
 
-1. For 1.3.0, open **AASS** from its desktop icon, or **Start-AASS.bat** in
+1. For 1.3.x, open **AASS** from its desktop icon, or **Start-AASS.bat** in
    `%LOCALAPPDATA%\Programs\AASS`. For 1.2.1, open **Start-AASS.bat** in the
    extracted release folder; keep that folder in place after installation.
 2. On **1. Setup**, use **Prepare / check this PC** if local preparation has not

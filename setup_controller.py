@@ -19,7 +19,7 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 
-from settings import SECRET_NAMES, subprocess_environment
+from settings import SECRET_NAMES, provider_preferences, subprocess_environment
 
 ROOT = Path(__file__).resolve().parent
 MAX_OUTPUT = 262144
@@ -202,10 +202,13 @@ class SetupController:
             raise ControllerError(
                 "invalid_response", "The check did not return a usable result. Retry this step."
             ) from None
+        allowed = (
+            {"ok", "error", "ready", "needs_action"} if args[0] == "auto-setup" else {"ok", "error"}
+        )
         if (
             not isinstance(payload, dict)
-            or payload.get("status") not in {"ok", "error"}
-            or (result.returncode != 0 and payload.get("status") == "ok")
+            or payload.get("status") not in allowed
+            or (result.returncode != 0 and payload.get("status") in {"ok", "ready"})
         ):
             raise ControllerError(
                 "invalid_response", "The check did not finish successfully. Retry this step."
@@ -226,11 +229,14 @@ class SetupController:
             )
         runtime = self._runtime()
         project.mkdir(parents=True, exist_ok=True)
+        service = provider_preferences(self.root).get("service")
+        selection = ["--judge-service", service] if service else []
         return self._execute(
             [
                 runtime,
                 "-m",
                 "orchestration_canvas",
+                *selection,
                 "run",
                 "--workspace",
                 str(project),

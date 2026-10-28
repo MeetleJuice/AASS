@@ -91,7 +91,7 @@ def test_app_local_env_and_notepad_filename_are_recognized(tmp_path, monkeypatch
     )
     discover_api_keys()
     assert os.environ["AASS_JUDGE_API_KEY"] == "fixture-local-key"
-    assert os.environ["AASS_JUDGE_MODEL"] == "gemini-flash-latest"
+    assert os.environ["AASS_JUDGE_MODEL"] == ""  # Catalog selection must supply an actual model.
     assert os.environ["AASS_WORKER_MODEL"] == "process-model"
 
 

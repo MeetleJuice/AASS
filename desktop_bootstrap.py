@@ -63,7 +63,9 @@ def bootstrap(source, target, *, offline=False, launch=True, callback=print):
             selected_file = next(
                 (source / name for name in (".env", ".env.txt") if (source / name).is_file()), None
             )
-        if selected_file is not None and not (state / "credentials.json").exists():
+        if selected_file is not None and (
+            source != installed or not (state / "credentials.json").exists()
+        ):
             try:
                 save_credentials_file(selected_file, installed)
             except (ValueError, OSError):

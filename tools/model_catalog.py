@@ -10,9 +10,11 @@ import json
 import re
 import time
 from contextlib import nullcontext
+from urllib.parse import urlsplit
 
 import httpx
 
+from provider_registry import providers, valid_url
 from tools.http_client import MAX_RESPONSE_BYTES
 
 MAX_PAGES = 5
@@ -38,7 +40,7 @@ EXCLUDED_MODEL_TERMS = (
     "search",
     "computer-use",
 )
-MODEL_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}\Z")
+MODEL_ID = re.compile(r"[A-Za-z0-9@][A-Za-z0-9_./:@-]{0,255}\Z")
 
 
 class CatalogError(RuntimeError):
@@ -90,7 +92,7 @@ def _get_page(client, service, *, headers, params, deadline):
     try:
         with client.stream(
             "GET",
-            ENDPOINTS[service],
+            valid_url(providers()[service]["models_url"]),
             headers=headers,
             params=params,
             follow_redirects=False,
@@ -134,16 +136,21 @@ def _get_page(client, service, *, headers, params, deadline):
 
 
 def _model_id(service, entry, api_key):
+    protocol = providers()[service]["adapter"]
     if not isinstance(entry, dict):
         raise CatalogError(
             service, "invalid_catalog", "The provider returned an invalid model catalog entry."
         )
-    name = entry.get("name") if service == "gemini" else entry.get("id")
+    name = entry.get("name") if protocol == "gemini" or service == "cloudflare" else entry.get("id")
     if not isinstance(name, str):
         raise CatalogError(
             service, "invalid_catalog", "The provider returned an invalid model identifier."
         )
-    if service == "gemini":
+    if service == "cloudflare":
+        task = entry.get("task", {})
+        if not isinstance(task, dict) or task.get("name", "").lower() != "text generation":
+            return None
+    if protocol == "gemini":
         name = name.removeprefix("models/")
         methods = entry.get("supportedGenerationMethods", [])
         if not isinstance(methods, list):
@@ -155,10 +162,11 @@ def _model_id(service, entry, api_key):
     elif service == "anthropic":
         if not name.startswith("claude-"):
             return None
-    elif not re.match(r"(?:gpt-|chatgpt-|o[1-9](?:-|$))", name):
+    elif service == "openai" and not re.match(r"(?:gpt-|chatgpt-|o[1-9](?:-|$))", name):
         return None
     if (
         not MODEL_ID.fullmatch(name)
+        or "://" in name
         or api_key in name
         or any(term in name.lower() for term in EXCLUDED_MODEL_TERMS)
     ):
@@ -167,9 +175,20 @@ def _model_id(service, entry, api_key):
 
 
 def _next_cursor(service, payload):
-    if service == "gemini":
+    protocol = providers()[service]["adapter"]
+    if service == "cloudflare":
+        info = payload.get("result_info", {})
+        page, size, total = (
+            info.get("page", 1),
+            info.get("per_page", 50),
+            info.get("total_count", 0),
+        )
+        if not all(type(n) is int and n >= 0 for n in (page, size, total)):
+            raise CatalogError(service, "invalid_catalog", "Invalid model catalog pagination.")
+        return str(page + 1) if page * size < total else None
+    if protocol == "gemini":
         cursor = payload.get("nextPageToken")
-    elif service == "anthropic":
+    elif protocol == "anthropic":
         more = payload.get("has_more", False)
         if type(more) is not bool:
             raise CatalogError(
@@ -204,7 +223,7 @@ def fetch_models(service: str, api_key: str, *, client: httpx.Client | None = No
     never written to disk, printed, placed in query strings or sent on redirects.
     Passing a client is intended for test transports or caller-managed sessions.
     """
-    if service not in ENDPOINTS:
+    if service not in providers():
         raise CatalogError(
             "unsupported",
             "unsupported_provider",
@@ -219,9 +238,17 @@ def fetch_models(service: str, api_key: str, *, client: httpx.Client | None = No
         raise CatalogError(
             service, "missing_key", "Select a private file with a usable API key for this provider."
         )
-    if service == "gemini":
+    row = providers()[service]
+    endpoint = valid_url(row["models_url"])
+    if urlsplit(endpoint).netloc != urlsplit(valid_url(row["url"])).netloc:
+        raise CatalogError(
+            service, "unsafe_catalog", "The model catalog must use the configured provider host."
+        )
+    adapter = row["adapter"]
+    protocol = adapter
+    if adapter == "gemini":
         headers = {"x-goog-api-key": api_key}
-    elif service == "anthropic":
+    elif adapter == "anthropic":
         headers = {"x-api-key": api_key, "anthropic-version": "2023-06-01"}
     else:
         headers = {"Authorization": "Bearer " + api_key}
@@ -233,15 +260,19 @@ def fetch_models(service: str, api_key: str, *, client: httpx.Client | None = No
         for _ in range(MAX_PAGES):
             params = (
                 {"pageSize": PAGE_SIZE}
-                if service == "gemini"
+                if protocol == "gemini"
                 else {"limit": PAGE_SIZE}
-                if service == "anthropic"
+                if protocol == "anthropic"
+                else {"page": int(cursor or "1"), "per_page": 50}
+                if service == "cloudflare"
                 else {}
             )
-            if cursor is not None:
-                params["pageToken" if service == "gemini" else "after_id"] = cursor
+            if cursor is not None and service != "cloudflare":
+                params["pageToken" if protocol == "gemini" else "after_id"] = cursor
             payload = _get_page(session, service, headers=headers, params=params, deadline=deadline)
-            entries = payload.get("models" if service == "gemini" else "data")
+            entries = payload.get(
+                "models" if service == "gemini" else "result" if service == "cloudflare" else "data"
+            )
             if not isinstance(entries, list):
                 raise CatalogError(
                     service, "invalid_catalog", "The provider did not return a model list."

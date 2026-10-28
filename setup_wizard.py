@@ -11,6 +11,7 @@ import tomllib
 import webbrowser
 from pathlib import Path
 
+from provider_registry import providers as provider_registry
 from settings import (
     is_link,
     provider_preferences,
@@ -20,7 +21,10 @@ from settings import (
 from setup_controller import ControllerError, SetupController
 
 ROOT = Path(__file__).resolve().parent
-SERVICES = {"Gemini": "gemini", "OpenAI": "openai", "Anthropic": "anthropic"}
+SERVICES = {
+    ("Gemini" if service == "gemini" else row["label"]): service
+    for service, row in provider_registry().items()
+}
 
 
 def application_version(root):
@@ -92,6 +96,9 @@ class SetupWizard:
         self.handing_off = False
         self.operation_kind = None
         self.update_cancel = threading.Event()
+        self.last_failure = {}
+        self.automatic_consent = False
+        self.configuration_fingerprint = ""
         self.worker_passed = False
         self.cloud_passed = False
         self.models = []
@@ -128,7 +135,9 @@ class SetupWizard:
         ttk.Label(
             main, text="Prepare this PC, connect your models, then choose what to build."
         ).pack(anchor="w", pady=(0, 12))
-        self.notice = tk.StringVar(value="Ready. Your existing tools and models will be reused.")
+        self.notice = tk.StringVar(
+            value="Setup awaiting checks. Existing tools and models will be reused."
+        )
         self.update_status = tk.StringVar(
             value="Updates install verified GitHub releases and preserve your settings."
         )
@@ -239,6 +248,9 @@ class SetupWizard:
             bottom, text="Cancel current operation", command=self.cancel, state="disabled"
         )
         self.cancel_button.pack(side="right")
+        self.button(bottom, "Export diagnostics", self.export_diagnostics).pack(
+            side="right", padx=8
+        )
         logs = ttk.Frame(main)
         logs.pack(fill="both", pady=(6, 0))
         self.log = tk.Text(logs, height=7, wrap="word", state="disabled")
@@ -367,6 +379,11 @@ class SetupWizard:
         self.events.put(("line", line))
 
     def error(self, report):
+        self.last_failure = {
+            "stage": report.get("stage", "setup"),
+            "code": report.get("code", "check_failed"),
+            "http_status": report.get("http_status"),
+        }
         message = report.get("message", "The connection did not pass.")
         hint = report.get("hint", "Check this provider's configuration, then retry.")
         status = report.get("http_status")
@@ -572,6 +589,12 @@ class SetupWizard:
         if report.get("settings_warning"):
             self.append(report["settings_warning"])
         self.available = {p["id"] for p in report.get("providers", []) if p.get("key_present")}
+        self.automatic_consent = report.get("automatic_consent", False)
+        self.configuration_fingerprint = report.get("configuration_fingerprint", "")
+        previous = report.get("previous_setup")
+        if self.local_ready and isinstance(previous, dict) and previous.get("status") == "ready":
+            self.automatic_finished(previous)
+            return
         selected = report.get("selected_file")
         names = [label for label, service in SERVICES.items() if service in self.available]
         self.credential_status.set(
@@ -586,7 +609,7 @@ class SetupWizard:
                 else "No supported provider key found. Choose your .env or .env.txt file."
             )
         )
-        saved_service = self.preferences.get("service")
+        saved_service = report.get("preferred_service") or self.preferences.get("service")
         if (
             self.provider.get() not in SERVICES
             or SERVICES[self.provider.get()] not in self.available
@@ -646,9 +669,68 @@ class SetupWizard:
         )
         self.model.set(preferred_model(self.models, saved))
         self.model_changed()
-        self.notice.set(
-            "Model selected from the provider's list. Test connections, or continue to your task."
+        self.notice.set("Model selected. Test connections authorizes API use.")
+        if self.automatic_consent and self.local_ready:
+            self.start(
+                "Automatically checking the local worker and up to three models from your selected provider (API use authorized in your private settings)...",
+                lambda: self.controller.json_operation(["auto-setup"], timeout=660),
+                self.automatic_finished,
+            )
+
+    def automatic_finished(self, report):
+        self.last_failure = report.get("last_failure", {})
+        if report.get("status") != "ready":
+            self.notice.set(
+                report.get(
+                    "message",
+                    "Setup needs user action. Use Test connections after correcting configuration.",
+                )
+            )
+            self.connection_status.set(self.notice.get())
+            return
+        service, model = report.get("service"), report.get("model")
+        if service not in self.available or not isinstance(model, str):
+            self.notice.set("Saved setup needs a configured provider. Refresh detection.")
+            return
+        self.provider.set(next(label for label, value in SERVICES.items() if value == service))
+        self.models = [{"id": model}]
+        self.model_box.configure(values=[model])
+        self.model.set(model)
+        self.preferences = {"service": service, "model": model}
+        self.worker_passed = self.cloud_passed = True
+        self.connection_status.set(
+            "Ready to run tasks. Model connections passed during setup; tasks verify their own results."
         )
+        self.notice.set("Ready to run tasks")
+        self.tabs.select(self.task_tab)
+
+    def export_diagnostics(self):
+        from tkinter import filedialog
+
+        path = filedialog.asksaveasfilename(
+            title="Export sanitized diagnostics",
+            defaultextension=".json",
+            initialfile="AASS-diagnostics.json",
+        )
+        if not path:
+            return
+        # Construct an allowlist report: no logs, private paths, hashes or key values.
+        report = {
+            "version": self.version,
+            "local_ready": self.local_ready,
+            "worker_verification_recorded": self.worker_passed,
+            "judge_verification_recorded": self.cloud_passed,
+            "provider": SERVICES.get(self.provider.get()),
+            "model_selected": bool(self.model.get()),
+            "last_failure": self.last_failure,
+        }
+        try:
+            Path(path).write_text(json.dumps(report, indent=2), encoding="utf-8")
+            self.notice.set(
+                "Sanitized diagnostics exported. Credentials and raw logs were excluded."
+            )
+        except OSError:
+            self.notice.set("Could not save diagnostics. Choose a writable destination.")
 
     def model_changed(self, _event=None):
         self.cloud_passed = False
@@ -709,7 +791,21 @@ class SetupWizard:
             )
             return
         self.connection_status.set("Both model connections passed. You can run a task.")
-        self.notice.set("Connections passed. Open the Run a task tab.")
+        self.notice.set("Ready to run tasks")
+        self.tabs.select(self.task_tab)
+        if self.configuration_fingerprint:
+            from telemetry import atomic_json
+
+            atomic_json(
+                self.root / ".aass/automatic-setup.json",
+                {
+                    "status": "ready",
+                    "service": SERVICES[self.provider.get()],
+                    "model": self.model.get(),
+                    "fingerprint": self.configuration_fingerprint,
+                    "message": "Ready to run tasks. Previously verified setup.",
+                },
+            )
         self.append("Local worker and independent cloud judge checks passed.")
 
     def choose_target(self):

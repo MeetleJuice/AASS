@@ -3,6 +3,7 @@
 import argparse
 import json
 import os
+import shlex
 import urllib.error
 import urllib.request
 from pathlib import Path
@@ -24,7 +25,7 @@ BUILD_ORDER = [
 ]
 
 
-def load_credentials(path):
+def load_credentials(path, *, provider_config=True):
     """Import simple KEY=value assignments into this process without evaluating code."""
     count = 0
     path = Path(path)
@@ -32,34 +33,41 @@ def load_credentials(path):
         raise ValueError("Credentials file must be a regular file no larger than 64 KiB")
     content = path.read_bytes()
     encoding = "utf-16" if content.startswith((b"\xff\xfe", b"\xfe\xff")) else "utf-8-sig"
-    for line in content.decode(encoding).splitlines():
+    lines = content.decode(encoding).splitlines()
+    extra_binding = None
+    if provider_config:
+        import re
+
+        for line in lines:
+            if "=" in line and line.split("=", 1)[0].strip() == "AASS_CUSTOM_KEY_VARIABLE":
+                candidate = line.strip().split("=", 1)[1].strip().strip("\"'")
+                if re.fullmatch(r"[A-Z][A-Z0-9_]{0,63}_(?:KEY|TOKEN)", candidate):
+                    extra_binding = candidate
+                    os.environ.setdefault("AASS_CUSTOM_KEY_VARIABLE", candidate)
+                    from settings import SECRET_NAMES
+
+                    SECRET_NAMES.add(candidate)
+    for line in lines:
         line = line.strip()
         if not line or line.startswith("#") or "=" not in line:
             continue
         key, value = line.split("=", 1)
         key = key.removeprefix("export ").strip()
-        if key not in CREDENTIAL_SETTINGS:
+        from provider_registry import CONFIG_NAMES
+
+        if (key not in CREDENTIAL_SETTINGS and key != extra_binding) or (
+            not provider_config and key in CONFIG_NAMES
+        ):
             continue
-        value = value.strip().strip("\"'")
+        lexer = shlex.shlex(value.strip(), posix=True)
+        lexer.whitespace_split = True
+        lexer.commenters = "#"
+        lexer.escape = ""
+        value = " ".join(lexer)
         if value:
             os.environ.setdefault(key, value)
             count += 1
     return count
-
-
-PROVIDER_DEFAULTS = (
-    ("OPENAI_API_KEY", "https://api.openai.com/v1", "gpt-4.1"),
-    (
-        "GEMINI_API_KEY",
-        "https://generativelanguage.googleapis.com/v1beta",
-        "gemini-flash-latest",
-    ),
-    (
-        "GOOGLE_API_KEY",
-        "https://generativelanguage.googleapis.com/v1beta",
-        "gemini-flash-latest",
-    ),
-)
 
 
 def configure_provider():
@@ -68,20 +76,11 @@ def configure_provider():
 
     preferences = provider_preferences()
     selected = os.environ.get("AASS_JUDGE_SERVICE") or preferences.get("service", "auto")
+    from provider_registry import providers as registry
+
     providers = {
-        "openai": ("OPENAI_API_KEY", "https://api.openai.com/v1", "gpt-4.1", "openai"),
-        "gemini": (
-            "GEMINI_API_KEY",
-            "https://generativelanguage.googleapis.com/v1beta",
-            "gemini-flash-latest",
-            "gemini",
-        ),
-        "anthropic": (
-            "ANTHROPIC_API_KEY",
-            "https://api.anthropic.com/v1",
-            "claude-sonnet-4-5",
-            "anthropic",
-        ),
+        service: (row["keys"], row["url"], row["model"], row["adapter"])
+        for service, row in registry().items()
     }
     if selected not in {"auto", *providers}:
         raise ValueError("Unsupported provider selection")
@@ -90,10 +89,8 @@ def configure_provider():
             os.environ["AASS_JUDGE_MODEL"] = preferences["model"]
         return
     candidates = providers.items() if selected == "auto" else [(selected, providers[selected])]
-    for service, (name, endpoint, model, adapter) in candidates:
-        key = os.environ.get(name) or (
-            os.environ.get("GOOGLE_API_KEY") if service == "gemini" else None
-        )
+    for _service, (names, endpoint, model, adapter) in candidates:
+        key = next((os.environ[name] for name in names if os.environ.get(name)), None)
         if not key and selected != "auto":
             base = os.environ.get("AASS_JUDGE_BASE_URL", "")
             if urlsplit(base).hostname == urlsplit(endpoint).hostname:
@@ -127,6 +124,9 @@ def discover_api_keys(*, configure=True):
     if selected_file is not None:
         # A stale or unreadable explicit choice needs attention, not silent fallback.
         load_credentials(selected_file)
+        if configure:
+            configure_provider()
+        return sorted(k for k in os.environ if k.startswith("AASS_") and k.endswith("API_KEY"))
     for name in (".env", ".env.txt"):
         local = application / name
         if local.is_file() and not is_link(local):
@@ -168,7 +168,7 @@ def discover_api_keys(*, configure=True):
                     "Credential folder scan exceeded 100 files; use --credentials-file"
                 )
             try:
-                load_credentials(file)
+                load_credentials(file, provider_config=False)
             except (OSError, UnicodeError, ValueError):
                 continue
     if configure:

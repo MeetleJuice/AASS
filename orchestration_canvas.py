@@ -149,6 +149,9 @@ def main(argv=None):
         "--credentials-file", type=Path, help="Import runtime credentials only into this process"
     )
     parser.add_argument("--no-desktop-discovery", action="store_true")
+    from provider_registry import providers
+
+    parser.add_argument("--judge-service", choices=["auto", *providers()])
     commands = parser.add_subparsers(dest="command", required=True)
     commands.add_parser("doctor")
     commands.add_parser("verify-live")
@@ -176,6 +179,8 @@ def main(argv=None):
                 if args.command != "doctor":
                     raise
                 config_error = True
+        if args.judge_service:
+            os.environ["AASS_JUDGE_SERVICE"] = args.judge_service
         try:
             configure_provider()
         except ValueError:

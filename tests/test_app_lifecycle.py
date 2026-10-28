@@ -488,6 +488,7 @@ def test_recovery_launches_verified_old_engine_before_importing_broken_new_modul
         "install_aass.py",
         "initialize_aass.py",
         "settings.py",
+        "provider_registry.py",
         "telemetry.py",
         "verify_release.py",
         "circuit_breaker.py",

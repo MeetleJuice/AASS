@@ -13,29 +13,12 @@ from circuit_breaker import CircuitBreaker
 from initialize_aass import discover_api_keys, select_worker, verify_ollama
 from judge_evaluator import JudgeEvaluator
 from orchestration_canvas import failure_report
+from provider_registry import providers, valid_url
+from setup_automation import fingerprint, saved_result
 from tools.model_catalog import MODEL_ID, CatalogError, fetch_models
 from worker_agent import WorkerAgent
 
-PROVIDERS = {
-    "gemini": {
-        "label": "Google Gemini",
-        "keys": ("GEMINI_API_KEY", "GOOGLE_API_KEY"),
-        "url": "https://generativelanguage.googleapis.com/v1beta",
-        "adapter": "gemini",
-    },
-    "openai": {
-        "label": "OpenAI",
-        "keys": ("OPENAI_API_KEY",),
-        "url": "https://api.openai.com/v1",
-        "adapter": "openai",
-    },
-    "anthropic": {
-        "label": "Anthropic",
-        "keys": ("ANTHROPIC_API_KEY",),
-        "url": "https://api.anthropic.com/v1",
-        "adapter": "anthropic",
-    },
-}
+PROVIDERS = providers()
 
 
 class SetupError(RuntimeError):
@@ -51,7 +34,7 @@ def _provider(service):
             "Choose a supported cloud provider.",
             "Select Google Gemini, OpenAI or Anthropic in the setup window.",
         )
-    return PROVIDERS[service]
+    return providers()[service]
 
 
 def provider_key(service):
@@ -66,7 +49,10 @@ def provider_key(service):
             configured = settings.judge_url(
                 os.environ.get("AASS_JUDGE_BASE_URL", ""), provider["adapter"]
             )
-            if urlsplit(configured).hostname == urlsplit(provider["url"]).hostname:
+            if (
+                provider["url"]
+                and urlsplit(configured).hostname == urlsplit(provider["url"]).hostname
+            ):
                 return generic, "AASS_JUDGE_API_KEY"
         except ValueError:
             pass
@@ -114,6 +100,10 @@ def credentials_report():
             str(path) for path in candidates if path.is_file() and not settings.is_link(path)
         ],
         preferences=preferences,
+        preferred_service=preferences.get("service") or os.environ.get("AASS_JUDGE_SERVICE"),
+        automatic_consent=os.environ.get("AASS_SETUP_ALLOW_BILLABLE_CHECK") == "1",
+        configuration_fingerprint=fingerprint(),
+        previous_setup=saved_result(root),
         settings_warning=warning,
     )
 
@@ -133,14 +123,41 @@ def _require_key(service):
 def models_report(service):
     discover_api_keys(configure=False)
     key = _require_key(service)
-    models = fetch_models(service, key)
+    provider = _provider(service)
+    if not provider["url"] or provider["adapter"] not in {"openai", "anthropic", "gemini"}:
+        raise SetupError(
+            "provider_configuration",
+            "Provider endpoint or protocol needs configuration.",
+            "Set the provider endpoint/account and supported API protocol in your private file.",
+        )
+    valid_url(provider["url"])
+    if provider["model"]:
+        if (
+            not MODEL_ID.fullmatch(provider["model"])
+            or "://" in provider["model"]
+            or key in provider["model"]
+        ):
+            raise SetupError(
+                "invalid_model",
+                "Configured model identifier is invalid.",
+                "Use the exact provider model identifier.",
+            )
+        models = [{"id": provider["model"], "label": provider["model"]}]
+    else:
+        models = fetch_models(service, key)
     if not models:
         raise SetupError(
             "no_text_models",
             "The provider returned no supported text models.",
             "Check that this key has text-generation API access in the provider console.",
         )
-    return _ok("models", service=service, models=models, catalog_only=True)
+    return _ok(
+        "models",
+        service=service,
+        models=models,
+        catalog_only=not bool(provider["model"]),
+        operator_selected=bool(provider["model"]),
+    )
 
 
 def verify_worker_report():
@@ -151,7 +168,7 @@ def verify_worker_report():
         raise SetupError(
             "worker_model_missing",
             "The selected local worker model is not available in Ollama.",
-            "Open Ollama and use Prepare local tools in the setup window to finish its model download.",
+            "Select or install a compatible model in Ollama, then retry Prepare / check. No large model is downloaded automatically.",
         )
     worker = WorkerAgent(os.environ.get("OLLAMA_HOST", "http://127.0.0.1:11434"), model)
     action = worker.step(
@@ -173,7 +190,12 @@ def verify_judge_report(service, model):
     discover_api_keys(configure=False)
     provider = _provider(service)
     key = _require_key(service)
-    if not isinstance(model, str) or not MODEL_ID.fullmatch(model) or key in model:
+    if (
+        not isinstance(model, str)
+        or not MODEL_ID.fullmatch(model)
+        or "://" in model
+        or key in model
+    ):
         raise SetupError(
             "invalid_model",
             "Select a model from the provider's model list.",
@@ -237,6 +259,7 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest="operation", required=True)
     commands.add_parser("credentials")
+    commands.add_parser("auto-setup")
     models = commands.add_parser("models")
     models.add_argument("--service", required=True, choices=PROVIDERS)
     commands.add_parser("verify-worker")
@@ -245,7 +268,12 @@ def main(argv=None):
     judge.add_argument("--model", required=True)
     args = parser.parse_args(argv)
     try:
-        if args.operation == "credentials":
+        if args.operation == "auto-setup":
+            discover_api_keys(configure=False)
+            from setup_automation import run
+
+            report = run(Path(__file__).resolve().parent)
+        elif args.operation == "credentials":
             report = credentials_report()
         elif args.operation == "models":
             report = models_report(args.service)
@@ -263,7 +291,7 @@ def main(argv=None):
                 report.update(
                     service=args.service,
                     model=model,
-                    api_host=urlsplit(PROVIDERS[args.service]["url"]).hostname,
+                    api_host=urlsplit(_provider(args.service)["url"]).hostname,
                 )
                 report["api_route"] = (
                     "generateContent"
@@ -273,7 +301,12 @@ def main(argv=None):
                     else "chat/completions"
                 )
     print(json.dumps(report, ensure_ascii=True))
-    return 0 if report["status"] == "ok" else 2
+    return (
+        0
+        if report["status"] == "ok"
+        or (args.operation == "auto-setup" and report["status"] == "ready")
+        else 2
+    )
 
 
 if __name__ == "__main__":

@@ -1,3 +1,20 @@
+# AASS 1.3.1 — automatic setup and configurable model providers
+
+Installer-local Notepad credential files are retained by private reference.
+Explicit first-run consent enables bounded worker/cloud validation, same-provider
+model fallback and remembered results. Working settings open the task tab;
+reopening does not repeat cloud tests. Missing local models require owner action
+instead of an automatic large download. Diagnostic export omits keys and raw logs.
+
+Provider configuration adds Groq, OpenRouter, NVIDIA, Requesty, Hugging Face and
+Cloudflare, plus configurable HTTPS endpoints using supported model API formats.
+Catalog entries are verified through a real review request before readiness.
+No automatic provider switching, security bypass or agent architecture change.
+See AUTOMATIC-SETUP.md for consent, routes, file priority and remaining owner steps.
+Provider protocol fixtures do not establish live access for every account.
+
+---
+
 # AASS 1.3.0 - permanent desktop app and verified updates
 
 Extract a full ZIP and double-click Install-AASS.bat. AASS checks the latest

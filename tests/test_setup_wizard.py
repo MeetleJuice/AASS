@@ -702,3 +702,54 @@ def test_bad_update_status_cannot_break_startup_or_echo_private_data(tmp_path):
         json.dumps({"status": "updated", "version": "PRIVATE_VALUE", "message": "PRIVATE_VALUE"})
     )
     assert gui.last_update_notice(tmp_path) == "Updated. Your settings were preserved."
+
+
+def test_automatic_check_with_consent_opens_task_tab(wizard_factory):
+    app, controller, window = wizard_factory()
+    select_model(app)
+    app.local_ready = app.automatic_consent = True
+    original = controller.json_operation
+
+    def operation(args, **kwargs):
+        if args == ["auto-setup"]:
+            return {"status": "ready", "service": "gemini", "model": "gemini-flash-latest"}
+        return original(args, **kwargs)
+
+    controller.json_operation = operation
+    app.models_loaded({"status": "ok", "models": [{"id": "gemini-flash-latest"}]})
+    settle(app)
+    assert app.cloud_passed and app.worker_passed
+    assert app.notice.get() == "Ready to run tasks"
+    assert app.tabs.selected == app.task_tab
+
+
+def test_cached_success_skips_catalog_and_paid_checks(wizard_factory):
+    app, controller, window = wizard_factory()
+    app.local_ready = True
+    app.credentials_loaded(
+        {
+            "status": "ok",
+            "providers": [{"id": "gemini", "key_present": True}],
+            "previous_setup": {"status": "ready", "service": "gemini", "model": "saved-model"},
+        }
+    )
+    assert not controller.calls
+    assert app.model.get() == "saved-model"
+    assert app.tabs.selected == app.task_tab
+
+
+def test_diagnostics_excludes_credentials_raw_logs_and_paths(wizard_factory, monkeypatch, tmp_path):
+    app, _, _ = wizard_factory()
+    output = tmp_path / "diagnostics.json"
+    monkeypatch.setattr(
+        sys.modules["tkinter"],
+        "filedialog",
+        SimpleNamespace(asksaveasfilename=lambda **kw: str(output)),
+        raising=False,
+    )
+    app.append("PRIVATE-KEY-TEST-VALUE in raw log")
+    app.export_diagnostics()
+    contents = output.read_text()
+    assert "PRIVATE-KEY-TEST-VALUE" not in contents
+    assert str(app.root) not in contents
+    assert json.loads(contents)["local_ready"] is False

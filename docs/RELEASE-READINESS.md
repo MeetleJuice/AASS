@@ -1,3 +1,17 @@
+# AASS 1.3.1 candidate
+
+Scope: automatic installer-local credentials, explicit first-run cloud consent,
+bounded same-provider model checks, saved readiness, protected diagnostic export,
+and additional/configurable model-provider routes. See AUTOMATIC-SETUP.md.
+Local suite: 470 passed, 3 Windows-only skips before final Windows CI. Bandit
+reports no medium/high findings. Provider requests are protocol fixtures, not
+live account verification. The attached private file was not committed or sent
+to a model provider. Publication remains gated by native Windows installation,
+UTF-16 installer-local discovery, shortcut/browser/update checks and Defender.
+1.3.0 evidence below is historical and does not establish 1.3.1 readiness.
+
+---
+
 # AASS 1.3.0 published and verified
 
 Published release: https://github.com/MeetleJuice/AASS/releases/tag/v1.3.0-0c1d26c

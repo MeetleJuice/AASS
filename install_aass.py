@@ -19,7 +19,7 @@ from pathlib import Path
 
 from initialize_aass import discover_api_keys, select_worker
 from sandboxes.container import DEFAULT_SANDBOX_IMAGE
-from settings import ollama_url, subprocess_environment
+from settings import SECRET_NAMES, ollama_url, subprocess_environment
 
 ROOT = Path(__file__).resolve().parent
 
@@ -76,18 +76,7 @@ class Installer:
         self.logged_bytes = 0
         self.heartbeat = heartbeat
         self.install_prerequisites = install_prerequisites
-        self.secret_values = [
-            os.environ[name]
-            for name in (
-                "AASS_JUDGE_API_KEY",
-                "OPENAI_API_KEY",
-                "GEMINI_API_KEY",
-                "GOOGLE_API_KEY",
-                "ANTHROPIC_API_KEY",
-                "AASS_POSTGRES_DSN",
-            )
-            if os.environ.get(name)
-        ]
+        self.secret_values = [os.environ[name] for name in SECRET_NAMES if os.environ.get(name)]
 
     def redact(self, text):
         for value in sorted(self.secret_values, key=len, reverse=True):
@@ -322,11 +311,9 @@ class Installer:
                 )
         model = select_worker(models)
         if model not in models:
-            if not binary:
-                raise SetupProblem(
-                    "No usable local model. Install qwen3.5:9b using your Ollama service."
-                )
-            self.run("Downloading worker model " + model, [binary, "pull", model], timeout=3600)
+            raise SetupProblem(
+                "No compatible installed worker model was found. Choose or install one in Ollama, then retry Prepare / check. AASS will not download large models automatically."
+            )
         self.say("[AASS] Selected local worker: " + model)
 
     def install(self, *, skip_live=True):
