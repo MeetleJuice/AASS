@@ -202,3 +202,40 @@ def test_previous_run_failures_do_not_trigger_early_pivot(tmp_path):
     )
     assert supervisor.run("new task")["status"] == "stopped"
     assert supervisor.strategy_index == 0
+
+
+def test_successful_rewrites_interleaved_with_invalid_actions_force_pivot(tmp_path):
+    worker = ScriptedWorker(
+        [
+            action("write", path="calculator.py", content="def add(a,b): return a+b\n"),
+            None,
+            action("write", path="calculator.py", content="def add(a,b):\n return a+b\n"),
+            None,
+            action("write", path="calculator.py", content="def add(a,b): return a + b\n"),
+            action("write", path="test_calculator.py", content="import unittest\n"),
+            action("test", command=["python", "-m", "unittest"]),
+            action("finish"),
+        ]
+    )
+    supervisor = CRDALSupervisor(tmp_path, worker, Judge(), sandbox=Sandbox())
+    report = supervisor.run("Create calculator and tests")
+    assert report["status"] == "approved"
+    assert worker.strategies[5] != worker.strategies[0]
+    assert supervisor._context("done")["completed_artifacts"][0]["definitions"] == ["add"]
+
+
+def test_intervening_test_allows_followup_repairs_without_rewrite_pivot(tmp_path):
+    worker = ScriptedWorker(
+        [
+            item
+            for _ in range(3)
+            for item in (
+                action("write", path="calculator.py", content="VALUE=1\n"),
+                action("test", command=["python", "-m", "unittest"]),
+            )
+        ]
+        + [action("finish")]
+    )
+    supervisor = CRDALSupervisor(tmp_path, worker, Judge(), sandbox=Sandbox())
+    assert supervisor.run("Repair")["status"] == "approved"
+    assert len(set(worker.strategies)) == 1

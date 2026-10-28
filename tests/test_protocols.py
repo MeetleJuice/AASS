@@ -40,8 +40,11 @@ def test_ollama_protocol_and_fresh_context(http_transport):
         assert worker.step("task", {}, "strategy", budget)["action"] == "map"
     assert all(len(r["messages"]) == 2 for r in requests)
     assert requests[0]["format"]["type"] == "object"
-    assert requests[0]["options"]["num_predict"] == 4096
-    assert budget.tokens > 8192
+    assert requests[0]["options"]["num_predict"] == 2048
+    assert requests[0]["think"] is False
+    assert budget.tokens == sum(
+        len(json.dumps(r["messages"]).encode()) + r["options"]["num_predict"] for r in requests
+    )
 
 
 @pytest.mark.parametrize(
@@ -199,3 +202,27 @@ def test_new_project_without_git_metadata_can_be_mapped(tmp_path):
     assert graph["version_control"] == "none"
     assert graph["files"] == ["app.py"]
     assert graph["imports"]["app.py"] == ["json"]
+
+
+@pytest.mark.parametrize(
+    ("response", "code"),
+    [
+        ({"message": {"content": ""}}, "worker_json_invalid"),
+        ({"message": {"content": '{"action":"write","files":[]}'}}, "worker_action_schema"),
+        (
+            {"done_reason": "length", "message": {"content": '{"action":"map","reason":"ok"}'}},
+            "worker_output_truncated",
+        ),
+    ],
+)
+def test_worker_protocol_failures_are_specific_and_preserve_charged_budget(
+    http_transport, response, code
+):
+    from worker_agent import WorkerProtocolError
+
+    http_transport(lambda request: httpx.Response(200, json=response))
+    budget = CircuitBreaker()
+    with pytest.raises(WorkerProtocolError) as caught:
+        WorkerAgent().step("task", {}, "strategy", budget)
+    assert caught.value.code == code
+    assert 2048 < budget.tokens < 64000

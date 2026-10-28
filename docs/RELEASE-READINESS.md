@@ -1,3 +1,23 @@
+# AASS 1.3.2 candidate — worker rewrite recovery
+
+The supplied first-task trajectory confirmed six calculator rewrites alternating
+with four invalid worker responses, without tests or a strategy pivot. This patch
+adds mixed rewrite-loop detection, bounded artifact summaries, specific private
+protocol diagnostics and per-action progress. Qwen3 action calls disable optional
+thinking and reserve their requested 2,048 output tokens. Safety ceilings and
+mandatory nonzero tests plus independent judge approval remain unchanged.
+
+Local verification: 476 passed, three Windows-only skips; no medium/high Bandit
+findings. A fixture-driven protocol replay executes eight real Docker calculator
+tests and reaches the strict review gate. It does not establish live model task
+completion. The user's 1.3.1 worker and Gemini connection checks passed, but their
+first task stopped; physical Windows task acceptance remains outstanding.
+Publication awaits the complete native Windows, Linux and security workflow.
+
+Earlier entries below are historical snapshots, not the current verdict.
+
+---
+
 # AASS 1.3.1 published and verified
 
 Official ZIP:

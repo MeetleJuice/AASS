@@ -1,3 +1,25 @@
+# AASS 1.3.2 — recover repeated worker rewrites
+
+A user trajectory showed six writes to calculator.py interleaved with four
+invalid model responses, no test actions and no strategy pivot. Successful writes
+had masked the fixation detector. Three writes to the same path without a test
+or a new artifact now force a bounded strategy change even across model errors.
+Worker context includes bounded file/definition summaries and explicit guidance
+to complete the other requested artifacts. Protocol errors distinguish invalid
+JSON, invalid action schema and truncated output without logging raw responses.
+Qwen3 schema-action calls disable optional thinking and request at most 2048
+output tokens, with the matching full reservation charged before every request.
+The 64,000-token and 20-iteration ceilings and strict test/judge gates remain.
+The desktop progress stream now reports each step's action and reserved budget.
+
+A regression replays mixed rewrite/protocol failures, pivots, writes calculator,
+unittest and README files, executes eight actual Docker tests including CLI and
+decimals/zero, and exercises the review gate using a fixture judge. Model decisions
+are fixtures; this does not prove a live Qwen/Gemini task on the user's machine.
+The release remains subject to all native Windows and security/publication gates.
+
+---
+
 # AASS 1.3.1 — automatic setup and configurable model providers
 
 Installer-local Notepad credential files are retained by private reference.

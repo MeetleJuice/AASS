@@ -232,12 +232,21 @@ def main(argv=None):
             os.environ.get("OLLAMA_HOST", "http://127.0.0.1:11434"),
             select_worker(verify_ollama()),
         )
+
+        def progress(event):
+            print(
+                f"[AASS] Step {event['iteration']}: {event['action']} - {event['outcome']}; "
+                f"budget {event['reserved_tokens']}/{event['token_limit']}; strategy {event['strategy'] + 1}",
+                flush=True,
+            )
+
         supervisor = CRDALSupervisor(
             args.workspace,
             worker,
             make_judge(),
             budget=budget,
             tools=operator_tools,
+            progress=progress,
             sandbox=ContainerSandbox(
                 args.workspace, os.environ.get("AASS_SANDBOX_IMAGE", DEFAULT_SANDBOX_IMAGE)
             ),

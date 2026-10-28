@@ -1,5 +1,6 @@
 """Bounded dual-loop supervisor. Runtime control code lives outside the target workspace."""
 
+import ast
 import hashlib
 import os
 import re
@@ -17,7 +18,7 @@ from stall_detector import check_fixation
 from telemetry import Trajectory, atomic_json
 from tools.operator_tools import OperatorTools
 from tools.repo_mapper import RepoMapper
-from worker_agent import WorkerAgent
+from worker_agent import WorkerAgent, WorkerProtocolError
 
 MAX_FILE_BYTES = 64 * 1024
 MAX_CONTEXT_BYTES = 12 * 1024
@@ -72,12 +73,15 @@ def workspace_path(root, name):
 
 
 class CRDALSupervisor:
-    def __init__(self, workspace, worker, judge, *, sandbox=None, budget=None, tools=None):
+    def __init__(
+        self, workspace, worker, judge, *, sandbox=None, budget=None, tools=None, progress=None
+    ):
         self.root = Path(workspace).resolve(strict=True)
         runtime = Path(__file__).resolve().parent
         if self.root == runtime or runtime.is_relative_to(self.root):
             raise ValueError("Use a separate target checkout, not the AASS runtime checkout")
         self.worker, self.judge = worker, judge
+        self.progress = progress
         self.tools = tools or OperatorTools()
         self.sandbox = sandbox or ContainerSandbox(self.root)
         self.budget = budget or CircuitBreaker()
@@ -96,6 +100,8 @@ class CRDALSupervisor:
         self.strategy_index = 0
         self.run_id = uuid.uuid4().hex
         self._has_run = False
+        self._last_write_path = None
+        self._write_streak = 0
 
     def save_state(self, status, **extra):
         state = {
@@ -110,10 +116,28 @@ class CRDALSupervisor:
         atomic_json(self.canvas, state)
         return state
 
+    def _artifacts(self):
+        summaries = []
+        for name, content in list(self.changed.items())[-8:]:
+            entry = {"path": name, "bytes": len(content.encode())}
+            if name.endswith(".py"):
+                try:
+                    tree = ast.parse(content)
+                    entry["definitions"] = [
+                        node.name
+                        for node in ast.walk(tree)
+                        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))
+                    ][:20]
+                except SyntaxError:
+                    entry["syntax"] = "needs repair"
+            summaries.append(entry)
+        return summaries
+
     def _context(self, observation):
         return {
             "observation": str(observation)[-MAX_CONTEXT_BYTES:],
             "changed_files": sorted(self.changed),
+            "completed_artifacts": self._artifacts(),
             "verified_since_write": self.tested,
             "recent_events": [e for e in self.history.events() if e.get("run_id") == self.run_id][
                 -3:
@@ -163,8 +187,16 @@ class CRDALSupervisor:
                     os.unlink(temporary)
             self.changed[action["path"]] = content
             self.tested = False
-            return "File written. A new successful test is required."
+            self._write_streak = (
+                self._write_streak + 1 if self._last_write_path == action["path"] else 1
+            )
+            self._last_write_path = action["path"]
+            return {
+                "written": action["path"],
+                "next": "Preserve this implementation. Create remaining requested artifacts, then run unittest. A fresh passing test is required.",
+            }
         if kind == "test":
+            self._write_streak = 0
             result = self.sandbox.run(action["command"])
             output = result.stdout + result.stderr
             executed_tests = bool(
@@ -267,8 +299,15 @@ class CRDALSupervisor:
                             "error_type": type(error).__name__,
                             "guidance": "Check action schema, file paths, and service readiness.",
                         }
+                    if isinstance(error, WorkerProtocolError):
+                        observation = {
+                            "error_code": error.code,
+                            "guidance": "Return exactly one complete JSON action. For write supply path and content for ONE file. Continue remaining artifacts; do not rewrite completed code.",
+                        }
                     signature = (
-                        str(error)
+                        error.code
+                        if isinstance(error, WorkerProtocolError)
+                        else str(error)
                         if isinstance(error, RuntimeError) and str(error).startswith("test:")
                         else type(error).__name__
                     )
@@ -282,7 +321,7 @@ class CRDALSupervisor:
                     strategy=self.strategy_index,
                     run_id=self.run_id,
                 )
-                if (
+                if self._write_streak >= 3 or (
                     check_fixation(self.history.path, run_id=self.run_id)
                     and len(self.history.events()) >= 3
                     and all(
@@ -292,11 +331,24 @@ class CRDALSupervisor:
                     if self.strategy_index + 1 >= len(STRATEGIES):
                         raise SafetyStop("Fixation persisted after all strategy pivots")
                     self.strategy_index += 1
+                    self._write_streak = 0
                     observation = {
+                        "guidance": "Repeated rewriting is not progress. Preserve the existing implementation and create missing tests/documentation or test a concrete defect.",
                         "forced_pivot": STRATEGIES[self.strategy_index],
                         "last_observation": observation,
                     }
                 self.save_state("running")
+                if self.progress:
+                    self.progress(
+                        {
+                            "iteration": self.budget.iterations,
+                            "action": action.get("action", "model"),
+                            "outcome": "ok" if signature == "SUCCESS" else "needs repair",
+                            "reserved_tokens": self.budget.tokens,
+                            "token_limit": self.budget.token_limit,
+                            "strategy": self.strategy_index,
+                        }
+                    )
         except SafetyStop as error:
             return self.save_state("stopped", reason=str(error))
         except Exception as error:
