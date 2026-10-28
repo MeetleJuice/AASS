@@ -1,0 +1,165 @@
+import json
+import os
+import shutil
+import subprocess
+import sys
+import tempfile
+import unittest
+from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
+
+# Import the module under test
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import expense_tracker as et
+
+
+class TestExpenseTracker(unittest.TestCase):
+    def setUp(self):
+        """Create a temporary directory for each test."""
+        self.temp_dir = tempfile.mkdtemp()
+        self.test_file = os.path.join(self.temp_dir, 'test_expenses.json')
+        # Initialize with empty list
+        with open(self.test_file, 'w') as f:
+            json.dump([], f)
+
+    def tearDown(self):
+        """Clean up temporary directory."""
+        if os.path.exists(self.temp_dir):
+            shutil.rmtree(self.temp_dir)
+
+    def test_add_expense_and_reload(self):
+        """Test adding an expense and reloading it."""
+        et.add_expense(self.test_file, 'food', 'Lunch', Decimal('12.50'))
+        expenses = et.load_expenses(self.test_file)
+        self.assertEqual(len(expenses), 1)
+        self.assertEqual(expenses[0]['category'], 'food')
+        self.assertEqual(expenses[0]['description'], 'Lunch')
+        self.assertEqual(expenses[0]['amount'], Decimal('12.50'))
+
+    def test_multiple_categories_and_totals(self):
+        """Test multiple categories and correct totals."""
+        et.add_expense(self.test_file, 'food', 'Lunch', Decimal('12.50'))
+        et.add_expense(self.test_file, 'transport', 'Bus fare', Decimal('2.00'))
+        et.add_expense(self.test_file, 'food', 'Dinner', Decimal('25.75'))
+        
+        expenses = et.load_expenses(self.test_file)
+        self.assertEqual(len(expenses), 3)
+        
+        # Check totals
+        total = sum(e['amount'] for e in expenses)
+        self.assertEqual(total, Decimal('40.25'))
+        
+        # Check category totals
+        food_total = sum(e['amount'] for e in expenses if e['category'] == 'food')
+        self.assertEqual(food_total, Decimal('38.25'))
+
+    def test_decimal_precision(self):
+        """Test exact addition of 0.10 and 0.20."""
+        et.add_expense(self.test_file, 'misc', 'Small item 1', Decimal('0.10'))
+        et.add_expense(self.test_file, 'misc', 'Small item 2', Decimal('0.20'))
+        
+        expenses = et.load_expenses(self.test_file)
+        total = sum(e['amount'] for e in expenses)
+        # Should be exactly 0.30, not 0.299999...
+        self.assertEqual(total, Decimal('0.30'))
+
+    def test_reject_zero_amount(self):
+        """Test rejection of zero amount."""
+        with self.assertRaises(ValueError) as context:
+            et.add_expense(self.test_file, 'food', 'Free lunch', Decimal('0.00'))
+        self.assertIn('zero', str(context.exception).lower())
+
+    def test_reject_negative_amount(self):
+        """Test rejection of negative amount."""
+        with self.assertRaises(ValueError) as context:
+            et.add_expense(self.test_file, 'food', 'Refund', Decimal('-5.00'))
+        self.assertIn('negative', str(context.exception).lower())
+
+    def test_reject_nonnumeric_amount(self):
+        """Test rejection of nonnumeric amount."""
+        with self.assertRaises(ValueError) as context:
+            et.add_expense(self.test_file, 'food', 'Bad amount', 'abc')
+        self.assertIn('nonnumeric', str(context.exception).lower())
+
+    def test_reject_overprecision_amount(self):
+        """Test rejection of amounts with more than 2 decimal places."""
+        with self.assertRaises(ValueError) as context:
+            et.add_expense(self.test_file, 'food', 'Overprecise', Decimal('1.234'))
+        self.assertIn('precision', str(context.exception).lower())
+
+    def test_empty_expense_list(self):
+        """Test handling of empty expense list."""
+        expenses = et.load_expenses(self.test_file)
+        self.assertEqual(len(expenses), 0)
+        
+        total = et.summary_expenses(self.test_file)
+        self.assertEqual(total['total'], Decimal('0.00'))
+
+    def test_malformed_json_unchanged(self):
+        """Test that malformed JSON remains unchanged."""
+        # Write malformed JSON
+        with open(self.test_file, 'w') as f:
+            f.write('{invalid json}')
+        
+        # Should raise an error when trying to load
+        with self.assertRaises(json.JSONDecodeError):
+            et.load_expenses(self.test_file)
+        
+        # Verify file is unchanged
+        with open(self.test_file, 'r') as f:
+            content = f.read()
+        self.assertEqual(content, '{invalid json}')
+
+    def test_cli_add_command(self):
+        """Test CLI add command using subprocess."""
+        result = subprocess.run(
+            [sys.executable, 'expense_tracker.py', '--file', self.test_file, 'add', 'food', 'Lunch', '12.50'],
+            capture_output=True,
+            text=True
+        )
+        self.assertEqual(result.returncode, 0)
+        self.assertIn('Added expense', result.stdout)
+
+    def test_cli_list_command(self):
+        """Test CLI list command using subprocess."""
+        # First add an expense
+        subprocess.run(
+            [sys.executable, 'expense_tracker.py', '--file', self.test_file, 'add', 'food', 'Lunch', '12.50'],
+            capture_output=True,
+            text=True
+        )
+        
+        result = subprocess.run(
+            [sys.executable, 'expense_tracker.py', '--file', self.test_file, 'list'],
+            capture_output=True,
+            text=True
+        )
+        self.assertEqual(result.returncode, 0)
+        self.assertIn('Lunch', result.stdout)
+
+    def test_cli_summary_command(self):
+        """Test CLI summary command using subprocess."""
+        # Add multiple expenses
+        subprocess.run(
+            [sys.executable, 'expense_tracker.py', '--file', self.test_file, 'add', 'food', 'Lunch', '12.50'],
+            capture_output=True,
+            text=True
+        )
+        subprocess.run(
+            [sys.executable, 'expense_tracker.py', '--file', self.test_file, 'add', 'transport', 'Bus', '2.00'],
+            capture_output=True,
+            text=True
+        )
+        
+        result = subprocess.run(
+            [sys.executable, 'expense_tracker.py', '--file', self.test_file, 'summary'],
+            capture_output=True,
+            text=True
+        )
+        self.assertEqual(result.returncode, 0)
+        self.assertIn('Total:', result.stdout)
+        self.assertIn('food', result.stdout)
+        self.assertIn('transport', result.stdout)
+
+
+if __name__ == '__main__':
+    unittest.main()

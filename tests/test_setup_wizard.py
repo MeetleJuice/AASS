@@ -614,6 +614,9 @@ def test_gui_smoke_check_never_takes_installation_instance_lock(
     _, _, window = wizard_factory()
     tk = sys.modules["tkinter"]
     tk.Tk = lambda: window
+    monkeypatch.setattr(
+        "pulse.view.PulseView", lambda *a, **kw: SimpleNamespace(close=lambda: None)
+    )
     monkeypatch.setitem(
         sys.modules,
         "app_lifecycle",

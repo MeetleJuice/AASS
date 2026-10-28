@@ -1,0 +1,230 @@
+#!/usr/bin/env python3
+"""Expense Tracker CLI application."""
+import argparse
+import json
+import os
+import sys
+from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
+
+DEFAULT_FILE = "expenses.json"
+MAX_DECIMAL_PLACES = 2
+
+
+def parse_amount(value: str) -> Decimal:
+    """Parse and validate an amount string.
+    
+    Args:
+        value: String representation of the amount.
+        
+    Returns:
+        A Decimal with at most MAX_DECIMAL_PLACES precision.
+        
+    Raises:
+        ValueError: If the amount is invalid, zero, negative, or has overprecision.
+    """
+    try:
+        d = Decimal(value)
+    except InvalidOperation:
+        raise ValueError(f"Invalid amount format: {value}")
+    
+    if not d.is_finite():
+        raise ValueError(f"Amount must be finite: {value}")
+    
+    if d == 0:
+        raise ValueError("Amount cannot be zero")
+    
+    if d < 0:
+        raise ValueError("Amount cannot be negative")
+    
+    # Check for overprecision (more than MAX_DECIMAL_PLACES)
+    quantized = d.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+    if quantized != d:
+        raise ValueError(f"Amount has too many decimal places: {value}")
+    
+    return d
+
+
+def load_expenses(file_path: str) -> list:
+    """Load expenses from a JSON file.
+    
+    Args:
+        file_path: Path to the JSON file.
+        
+    Returns:
+        A list of expense dictionaries.
+        
+    Raises:
+        FileNotFoundError: If the file does not exist.
+        json.JSONDecodeError: If the file contains invalid JSON.
+    """
+    if not os.path.exists(file_path):
+        return []
+    
+    with open(file_path, 'r', encoding='utf-8') as f:
+        content = f.read()
+    
+    try:
+        data = json.loads(content)
+    except json.JSONDecodeError:
+        # Return empty list on malformed JSON to prevent overwriting
+        print(f"Warning: Malformed JSON in {file_path}. Using empty list.")
+        return []
+    
+    if not isinstance(data, list):
+        print(f"Warning: Expected a list of expenses in {file_path}.")
+        return []
+    
+    return data
+
+
+def save_expenses(file_path: str, expenses: list) -> bool:
+    """Save expenses to a JSON file.
+    
+    Args:
+        file_path: Path to the JSON file.
+        expenses: List of expense dictionaries.
+        
+    Returns:
+        True if successful, False otherwise.
+    """
+    try:
+        with open(file_path, 'w', encoding='utf-8') as f:
+            json.dump(expenses, f, indent=2)
+        return True
+    except IOError as e:
+        print(f"Error saving to {file_path}: {e}")
+        return False
+
+
+def add_expense(file_path: str, category: str, description: str, amount_str: str) -> bool:
+    """Add a new expense.
+    
+    Args:
+        file_path: Path to the JSON file.
+        category: Expense category (e.g., 'food', 'transport').
+        description: Description of the expense.
+        amount_str: String representation of the positive amount.
+        
+    Returns:
+        True if successful, False otherwise.
+    """
+    try:
+        amount = parse_amount(amount_str)
+    except ValueError as e:
+        print(f"Error adding expense: {e}")
+        return False
+    
+    expenses = load_expenses(file_path)
+    
+    expense = {
+        "category": category,
+        "description": description,
+        "amount": str(amount)
+    }
+    
+    expenses.append(expense)
+    
+    if not save_expenses(file_path, expenses):
+        return False
+    
+    print(f"Added expense: {description} ({category}) - ${amount}")
+    return True
+
+
+def list_expenses(file_path: str) -> bool:
+    """List all saved expenses.
+    
+    Args:
+        file_path: Path to the JSON file.
+        
+    Returns:
+        True if successful, False otherwise.
+    """
+    expenses = load_expenses(file_path)
+    
+    if not expenses:
+        print("No expenses found.")
+        return True
+    
+    print("\nExpenses:")
+    print("-" * 60)
+    for exp in expenses:
+        print(f"  {exp['description']}")
+        print(f"    Category: {exp['category']}")
+        print(f"    Amount: ${exp['amount']}")
+        print()
+    
+    return True
+
+
+def summary_expenses(file_path: str) -> bool:
+    """Show total and totals by category.
+    
+    Args:
+        file_path: Path to the JSON file.
+        
+    Returns:
+        True if successful, False otherwise.
+    """
+    expenses = load_expenses(file_path)
+    
+    if not expenses:
+        print("No expenses found.")
+        return True
+    
+    total = Decimal('0')
+    category_totals = {}
+    
+    for exp in expenses:
+        amount = Decimal(exp['amount'])
+        category = exp['category']
+        
+        total += amount
+        
+        if category not in category_totals:
+            category_totals[category] = Decimal('0')
+        category_totals[category] += amount
+    
+    print("\nExpense Summary")
+    print("-" * 40)
+    print(f"Total: ${total}")
+    print()
+    print("By Category:")
+    for cat, amt in sorted(category_totals.items()):
+        print(f"  {cat}: ${amt}")
+    
+    return True
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Expense Tracker CLI")
+    parser.add_argument("--file", default=DEFAULT_FILE, help=f"Path to JSON file (default: {DEFAULT_FILE})")
+    subparsers = parser.add_subparsers(dest="command", required=True)
+    
+    # Add command
+    add_parser = subparsers.add_parser("add", help="Add an expense")
+    add_parser.add_argument("category", help="Expense category")
+    add_parser.add_argument("description", help="Description of the expense")
+    add_parser.add_argument("amount", type=str, help="Positive amount (e.g., 12.50)")
+    
+    # List command
+    subparsers.add_parser("list", help="List all expenses")
+    
+    # Summary command
+    subparsers.add_parser("summary", help="Show summary")
+    
+    args = parser.parse_args()
+    
+    if args.command == "add":
+        success = add_expense(args.file, args.category, args.description, args.amount)
+        sys.exit(0 if success else 1)
+    elif args.command == "list":
+        success = list_expenses(args.file)
+        sys.exit(0 if success else 1)
+    elif args.command == "summary":
+        success = summary_expenses(args.file)
+        sys.exit(0 if success else 1)
+
+
+if __name__ == "__main__":
+    main()

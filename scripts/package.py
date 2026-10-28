@@ -11,6 +11,9 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 FILES = [
     "README.md",
+    "pulse/manifest.json",
+    "docs/PULSE-PLAN.md",
+    "docs/PULSE.md",
     "LICENSE",
     "pyproject.toml",
     "requirements.lock",
@@ -83,7 +86,7 @@ def build(root=ROOT, *, allow_dirty=False):
     paths = set(FILES)
     paths.update(
         p.relative_to(root).as_posix()
-        for folder in ("tools", "sandboxes")
+        for folder in ("tools", "sandboxes", "pulse")
         for p in (root / folder).glob("*.py")
     )
     content = {}

@@ -1,3 +1,26 @@
+# AASS 1.4.0 Pulse candidate
+
+Eight versioned, isolated diagnostic benchmarks; responsive All Tests view;
+metadata-only reviewed export; explicit live evaluation consent; unchanged
+installer/updater and mandatory release gates. See PULSE.md and PULSE-PLAN.md.
+
+Local complete suite: 497 passed, four Windows-only skips. Final focused checks:
+59 passed including actual Docker benchmark execution, original expense baseline,
+repair feedback and owned-container deadline cleanup. Final report/comparison
+unit checks: 11 passed, three integration skips. Lint/format and medium/high
+Bandit checks passed. Native Windows UI, packaged Pulse and all release gates
+remain pending until the pushed candidate completes GitHub verification.
+
+No live model/provider evaluations were performed here. Fixture pass results do
+not establish live reasoning, physical Windows 10 acceptance or RTX 3050 timing.
+The exported ZIP intentionally excludes raw source/model/test text and private
+paths; approved benchmark artifact names/hashes and fixed diagnostic metadata
+remain available. Nothing is automatically uploaded.
+
+Earlier entries below are historical snapshots, not the current verdict.
+
+---
+
 # AASS 1.3.2 published and verified
 
 Official ZIP:

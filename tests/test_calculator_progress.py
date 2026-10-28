@@ -133,7 +133,9 @@ def test_rewrite_protocol_loop_pivots_and_delivers_calculator_with_real_tests(
     )
     assert report["status"] == "approved"
     assert report["reserved_tokens"] <= 64000
-    assert report["iterations"] == 9
+    assert report["iterations"] == 11  # Nine decisions plus two automatic verification checkpoints.
+    assert len(contexts) == 9
+    assert len(supervisor.evidence) == 3
     assert contexts[5]["strategy"] != contexts[0]["strategy"]
     assert "add" in contexts[5]["context"]["completed_artifacts"][0]["definitions"]
     assert len(reviews) == 1

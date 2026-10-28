@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "aass-runtime"
-version = "1.3.2"
+version = "1.4.0"
 description = "Bounded dual-loop autonomous engineering runtime"
 requires-python = ">=3.12"
 dependencies = ["filelock>=4.2.1,<5", "httpx>=0.28,<1", "mcp>=1.26,<2", "playwright>=1.58,<2"]
@@ -20,7 +20,7 @@ aass = "orchestration_canvas:main"
 py-modules = ["initialize_aass", "circuit_breaker", "worker_agent", "stall_detector", "judge_evaluator", "orchestration_canvas", "crdal_supervisor", "telemetry", "settings", "install_aass", "launch_aass", "local_app", "setup_api", "setup_automation", "provider_registry", "setup_controller", "setup_wizard", "update_manager", "app_lifecycle", "desktop_bootstrap", "desktop_launcher", "desktop_integration"]
 
 [tool.setuptools.packages.find]
-include = ["tools*", "sandboxes*"]
+include = ["tools*", "sandboxes*", "pulse*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -31,3 +31,6 @@ line-length = 100
 
 [tool.ruff.lint]
 select = ["E4", "E7", "E9", "F", "I", "B"]
+
+[tool.setuptools.package-data]
+pulse = ["manifest.json"]

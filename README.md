@@ -2,11 +2,18 @@
 
 A bounded Python engineering agent with a local Ollama worker, isolated
 Docker tests, persistent failure history, and an independent cloud review gate.
-Preferred local model: **qwen3.5:9b**. Current version: **1.3.2**, with guided Windows setup.
+Preferred local model: **qwen3.5:9b**. Current version: **1.4.0**, with guided Windows setup.
 
 Use a **published release with matching verification evidence**. Development
 source alone is not proof of a working Windows release. See the dated
 [readiness and limitations](docs/RELEASE-READINESS.md) record.
+
+## AASS Pulse
+
+Click **All Tests** for eight isolated diagnostic benchmarks, real tool evidence,
+safe cancellation and a reviewed diagnostic ZIP. Default checks use fixture
+model decisions; live Ollama/cloud evaluations require explicit consent.
+See [Pulse usage and limitations](docs/PULSE.md).
 
 ## Automatic first run
 

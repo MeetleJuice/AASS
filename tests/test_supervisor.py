@@ -239,3 +239,119 @@ def test_intervening_test_allows_followup_repairs_without_rewrite_pivot(tmp_path
     supervisor = CRDALSupervisor(tmp_path, worker, Judge(), sandbox=Sandbox())
     assert supervisor.run("Repair")["status"] == "approved"
     assert len(set(worker.strategies)) == 1
+
+
+def test_ready_snapshot_is_verified_before_next_model_call_and_errors_survive_rejection(tmp_path):
+    from worker_agent import WorkerProtocolError
+
+    seen = []
+
+    class Worker(ScriptedWorker):
+        def step(self, task, context, strategy, budget):
+            seen.append(context)
+            return super().step(task, context, strategy, budget)
+
+    class FailingSandbox:
+        def run(self, command):
+            return ExecutionResult(
+                1, "", "Ran 1 test in 0.1s\nFAILED (failures=1)\nAssertionError: concrete defect"
+            )
+
+    worker = Worker(
+        [
+            action("write", path="test_app.py", content="import unittest\n"),
+            WorkerProtocolError("worker_action_schema"),
+            action("map"),
+        ]
+    )
+    # ScriptedWorker normally returns objects; raise the injected protocol error.
+    original = worker.step
+
+    def step(*args):
+        item = original(*args)
+        if isinstance(item, Exception):
+            raise item
+        return item
+
+    worker.step = step
+    supervisor = CRDALSupervisor(
+        tmp_path,
+        worker,
+        Judge(),
+        sandbox=FailingSandbox(),
+        budget=CircuitBreaker(iteration_limit=4),
+    )
+    result = supervisor.run("Create and verify")
+    assert result["status"] == "stopped"
+    assert len(supervisor.evidence) == 1
+    assert "AssertionError" in seen[1]["latest_test"]["output_tail"]
+    assert "AssertionError" in seen[2]["latest_test"]["output_tail"]
+
+
+def test_independent_acceptance_cannot_be_replaced_by_worker(tmp_path):
+    from circuit_breaker import SafetyStop
+
+    protected = tmp_path / "test_acceptance.py"
+    protected.write_text("original")
+    supervisor = CRDALSupervisor(
+        tmp_path,
+        ScriptedWorker([]),
+        Judge(),
+        sandbox=Sandbox(),
+        protected_paths=["test_acceptance.py"],
+    )
+    with pytest.raises(SafetyStop):
+        supervisor.execute(action("write", path="test_acceptance.py", content="pass"))
+    assert protected.read_text() == "original"
+
+
+def test_identical_rewrite_still_requires_fresh_verification(tmp_path):
+    worker = ScriptedWorker(
+        [
+            action("write", path="test_app.py", content="import unittest\n"),
+            action("write", path="test_app.py", content="import unittest\n"),
+            action("finish"),
+        ]
+    )
+    supervisor = CRDALSupervisor(tmp_path, worker, Judge(), sandbox=Sandbox())
+    assert supervisor.run("Verify")["status"] == "approved"
+    assert len(supervisor.evidence) == 2
+
+
+def test_productive_same_file_edits_do_not_count_as_fixation(tmp_path):
+    worker = ScriptedWorker(
+        [
+            action("write", path="sample.py", content="A=1\n"),
+            action("write", path="sample.py", content="A=1\nB=2\n"),
+            action("write", path="sample.py", content="A=1\nB=2\nC=3\n"),
+            action("test", command=["python", "-m", "unittest"]),
+            action("finish"),
+        ]
+    )
+    supervisor = CRDALSupervisor(tmp_path, worker, Judge(), sandbox=Sandbox())
+    assert supervisor.run("Build")["status"] == "approved"
+    assert len(set(worker.strategies)) == 1
+
+
+def test_unchanged_failure_after_ineffective_repair_forces_pivot(tmp_path):
+    class FailingSandbox:
+        def run(self, command):
+            return ExecutionResult(1, "", "Ran 1 test\nFAILED (failures=1)\n")
+
+    worker = ScriptedWorker(
+        [
+            action("write", path="test_app.py", content="import unittest\n"),
+            action("write", path="test_app.py", content="import unittest\n# cosmetic repair\n"),
+            action("map"),
+        ]
+    )
+    supervisor = CRDALSupervisor(
+        tmp_path,
+        worker,
+        Judge(),
+        sandbox=FailingSandbox(),
+        budget=CircuitBreaker(iteration_limit=5),
+    )
+    assert supervisor.run("Repair")["status"] == "stopped"
+    assert len(supervisor.evidence) == 2
+    assert supervisor.strategy_index == 1

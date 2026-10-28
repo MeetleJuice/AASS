@@ -106,12 +106,15 @@ def snapshot(source, destination):
 
 
 class ContainerSandbox:
-    def __init__(self, workspace, image=DEFAULT_SANDBOX_IMAGE, timeout=60):
+    def __init__(self, workspace, image=DEFAULT_SANDBOX_IMAGE, timeout=60, *, owner_label=None):
         self.workspace = Path(workspace).resolve(strict=True)
         if not self.workspace.is_dir():
             raise ValueError("Workspace must be a directory")
         if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._/:@-]{0,255}", image):
             raise SafetyStop("Invalid sandbox image reference")
+        if owner_label is not None and not re.fullmatch(r"[0-9a-f]{32}", owner_label):
+            raise SafetyStop("Invalid diagnostic owner label")
+        self.owner_label = owner_label
         self.image = image
         self.timeout = min(max(timeout, 1), 120)
 
@@ -128,6 +131,7 @@ class ContainerSandbox:
                 "--rm",
                 "--name",
                 name,
+                *(["--label", "aass.pulse=" + self.owner_label] if self.owner_label else []),
                 "--network=none",
                 "--read-only",
                 "--cap-drop=ALL",

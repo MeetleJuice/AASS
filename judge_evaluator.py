@@ -2,6 +2,7 @@
 
 import json
 import re
+import time
 from urllib.parse import urlsplit
 
 import httpx
@@ -12,7 +13,15 @@ from tools.http_client import post_json
 
 
 class JudgeEvaluator:
-    def __init__(self, api_key, model, base_url="https://api.openai.com/v1", provider="openai"):
+    def __init__(
+        self,
+        api_key,
+        model,
+        base_url="https://api.openai.com/v1",
+        provider="openai",
+        *,
+        observer=None,
+    ):
         if not api_key or not model:
             raise ValueError("Independent judge API key and model are required")
         if provider not in ("openai", "anthropic", "gemini"):
@@ -42,11 +51,13 @@ class JudgeEvaluator:
                 raise ValueError(
                     "Gemini judge model must be a model identifier without a URL or path"
                 )
+        self.observer = observer
         self.provider = provider
         self.api_key, self.model, self.base_url = api_key, model, base_url.rstrip("/")
 
-    def evaluate(self, task, evidence, budget):
-        messages = [
+    @staticmethod
+    def review_messages(task, evidence):
+        return [
             {
                 "role": "system",
                 "content": "Independently review the engineering task and evidence. "
@@ -56,7 +67,21 @@ class JudgeEvaluator:
             },
             {"role": "user", "content": json.dumps({"task": task, "evidence": evidence})},
         ]
+
+    def required_tokens(self, task, evidence):
+        return len(json.dumps(self.review_messages(task, evidence)).encode()) + MAX_CALL_TOKENS
+
+    def evaluate(self, task, evidence, budget):
+        messages = self.review_messages(task, evidence)
         budget.reserve(json.dumps(messages), MAX_CALL_TOKENS)
+        started = time.monotonic()
+        if self.observer:
+            self.observer(
+                component="judge",
+                event_type="model_requested",
+                request_count=1,
+                reserved_tokens=budget.tokens,
+            )
         with httpx.Client(timeout=90, follow_redirects=False, trust_env=True) as client:
             if self.provider == "gemini":
                 response = post_json(
@@ -111,6 +136,24 @@ class JudgeEvaluator:
                     },
                 )
                 text = response["choices"][0]["message"]["content"]
+            if self.observer:
+                usage = response.get("usageMetadata", response.get("usage", {}))
+                measured = {"duration": time.monotonic() - started}
+                for source, target in [
+                    ("promptTokenCount", "actual_input_tokens"),
+                    ("candidatesTokenCount", "actual_output_tokens"),
+                    ("input_tokens", "actual_input_tokens"),
+                    ("output_tokens", "actual_output_tokens"),
+                    ("prompt_tokens", "actual_input_tokens"),
+                    ("completion_tokens", "actual_output_tokens"),
+                ]:
+                    if (
+                        isinstance(usage, dict)
+                        and type(usage.get(source)) is int
+                        and usage[source] >= 0
+                    ):
+                        measured[target] = usage[source]
+                self.observer(component="judge", event_type="model_returned", **measured)
             verdict = json.loads(text)
         if (
             not isinstance(verdict, dict)

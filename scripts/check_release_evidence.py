@@ -14,7 +14,7 @@ from verify_release import verify  # noqa: E402
 
 def check(directory):
     directory = Path(directory)
-    archive = directory / "AASS-1.3.2.zip"
+    archive = directory / "AASS-1.4.0.zip"
     digest = hashlib.sha256(archive.read_bytes()).hexdigest()
     scan = json.loads((directory / "defender-scan.json").read_text(encoding="utf-8-sig"))
     if (
@@ -61,7 +61,7 @@ def check(directory):
         if len(roots) != 1:
             raise ValueError("Unexpected archive roots")
         manifest = verify(roots[0])
-        if manifest.get("version") != "1.3.2" or roots[0].name != "AASS-1.3.2":
+        if manifest.get("version") != "1.4.0" or roots[0].name != "AASS-1.4.0":
             raise ValueError("Artifact version does not match the reviewed release")
         if manifest.get("dirty") or not manifest.get("source_revision"):
             raise ValueError("Cannot publish a dirty or unidentified source tree")

@@ -38,28 +38,19 @@ def test_full_runtime_http_worker_container_tests_review_gate(
             "content": "import unittest\nfrom calculator import add\nclass Addition(unittest.TestCase):\n def test_add(self): self.assertEqual(add(2,3),5)\n",
             "reason": "functional test",
         },
-        {
-            "action": "test",
-            "command": ["python", "-m", "unittest", "discover", "-v"],
-            "reason": "verify",
-        },
         {"action": "finish", "reason": "tests passed"},
     ]
     if repair_failure:
-        actions[3:3] = [
+        actions[2:2] = [
             {
                 "action": "write",
                 "path": "calculator.py",
                 "content": "def add(a,b): return a+b\n",
                 "reason": "Repair the implementation after observing the actual failing unit test",
             },
-            {
-                "action": "test",
-                "command": ["python", "-m", "unittest", "discover", "-v"],
-                "reason": "Retest the repaired file before review",
-            },
         ]
-    expected_iterations = len(actions)
+    expected_requests = len(actions)
+    expected_iterations = expected_requests + (2 if repair_failure else 1)
     actions = iter(actions)
     worker_requests = []
     judge_calls = []
@@ -134,16 +125,17 @@ def test_full_runtime_http_worker_container_tests_review_gate(
         assert (tmp_path / "calculator.py").read_text() == "def add(a,b): return a+b\n"
         assert report["iterations"] == expected_iterations
         assert len(judge_calls) == 1
-        assert len(worker_requests) == expected_iterations
+        assert len(worker_requests) == expected_requests
         if repair_failure:
             # Actual Docker failure output reaches the next protocol request;
             # the fixture worker repairs it, rather than a model making a decision.
-            failed_context = worker_requests[3]["context"]
+            failed_context = worker_requests[2]["context"]
             assert not failed_context["verified_since_write"]
-            assert "AssertionError" in failed_context["observation"]
-            assert "FAILED (failures=1)" in failed_context["observation"]
-            assert not worker_requests[4]["context"]["verified_since_write"]
-            assert worker_requests[5]["context"]["verified_since_write"]
+            assert "AssertionError" in failed_context["latest_test"]["output_tail"]
+            assert "FAILED (failures=1)" in failed_context["latest_test"]["output_tail"]
+            assert "AssertionError" not in failed_context["observation"]
+            assert "FAILED (failures=1)" in failed_context["latest_test"]["output_tail"]
+            assert worker_requests[3]["context"]["verified_since_write"]
 
         # Reopen persisted state through fresh objects. This verifies process-independent
         # history, not a physical Windows desktop close/reopen acceptance test.

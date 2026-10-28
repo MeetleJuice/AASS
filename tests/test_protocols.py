@@ -226,3 +226,45 @@ def test_worker_protocol_failures_are_specific_and_preserve_charged_budget(
         WorkerAgent().step("task", {}, "strategy", budget)
     assert caught.value.code == code
     assert 2048 < budget.tokens < 64000
+
+
+def test_action_schema_requires_arguments_for_each_action():
+    from jsonschema import Draft202012Validator
+
+    from worker_agent import ACTION_SCHEMA
+
+    validator = Draft202012Validator(ACTION_SCHEMA)
+    assert validator.is_valid(
+        {"action": "test", "reason": "verify", "command": ["python", "-m", "unittest"]}
+    )
+    for bad in [
+        {"action": "test", "reason": "verify"},
+        {"action": "test", "reason": "verify", "command": "python -m unittest"},
+        {"action": "write", "reason": "write", "path": "app.py"},
+        {"action": "mcp", "reason": "call", "tool": "unknown"},
+        {"action": "test", "reason": "verify", "command": []},
+    ]:
+        assert not validator.is_valid(bad)
+        with pytest.raises(ValueError):
+            WorkerAgent.validate(bad)
+
+
+def test_schema_rejection_records_only_fixed_field_names(http_transport):
+    from worker_agent import WorkerProtocolError
+
+    observed = []
+    http_transport(
+        lambda request: httpx.Response(
+            200,
+            json={
+                "message": {"content": json.dumps({"action": "test", "reason": "FAKE_PRIVATE_KEY"})}
+            },
+        )
+    )
+    with pytest.raises(WorkerProtocolError) as caught:
+        WorkerAgent(observer=lambda **event: observed.append(event)).step(
+            "task", {}, "strategy", CircuitBreaker()
+        )
+    assert caught.value.details["field"] == "command"
+    assert observed[-1]["event_type"] == "action_rejected"
+    assert "FAKE_PRIVATE_KEY" not in json.dumps(observed)

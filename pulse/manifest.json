@@ -1,0 +1,70 @@
+{
+  "version": "1.0.0",
+  "rules": "Pass each mandatory independent assertion. No composite score. Fixtures demonstrate harness behavior, not live AI reasoning.",
+  "cases": [
+    {
+      "id": "basic-creation",
+      "title": "Basic creation",
+      "timeout": 90,
+      "live": true,
+      "expected": "Module created; independent behavior checks pass",
+      "live_timeout": 600
+    },
+    {
+      "id": "existing-repair",
+      "title": "Existing-code repair",
+      "timeout": 90,
+      "live": true,
+      "expected": "Real failing test observed; defect repaired; passing retest",
+      "live_timeout": 600
+    },
+    {
+      "id": "multi-file",
+      "title": "Multi-file engineering",
+      "timeout": 90,
+      "live": true,
+      "expected": "Implementation, agent tests and README; independent acceptance passes",
+      "live_timeout": 600
+    },
+    {
+      "id": "data-integrity",
+      "title": "Data integrity",
+      "timeout": 90,
+      "live": true,
+      "expected": "Malformed stored bytes preserved when add fails",
+      "live_timeout": 600
+    },
+    {
+      "id": "schema-recovery",
+      "title": "Schema rejection and recovery",
+      "timeout": 60,
+      "live": false,
+      "expected": "Missing command rejected; corrective feedback; valid retry",
+      "live_timeout": 600
+    },
+    {
+      "id": "rewrite-loop",
+      "title": "Alternating-file rewrite prevention",
+      "timeout": 90,
+      "live": false,
+      "expected": "Runnable changed snapshot verified; repeated nonprogress intercepted",
+      "live_timeout": 600
+    },
+    {
+      "id": "resume-integrity",
+      "title": "Interruption and state integrity",
+      "timeout": 60,
+      "live": false,
+      "expected": "Bounded stop retains source/history; new run can inspect state; no false approval",
+      "live_timeout": 600
+    },
+    {
+      "id": "expense-regression",
+      "title": "Expense tracker independent acceptance",
+      "timeout": 90,
+      "live": true,
+      "expected": "Original CLI, decimal validation, persistence and malformed-data safety requirements pass independent tests",
+      "live_timeout": 600
+    }
+  ]
+}

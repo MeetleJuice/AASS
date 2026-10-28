@@ -132,6 +132,8 @@ class SetupWizard:
             side="left"
         )
         self.button(header, "Update", self.update_application).pack(side="right")
+        self.pulse_view = None
+        self.button(header, "All Tests", self.open_pulse).pack(side="right", padx=8)
         ttk.Label(
             main, text="Prepare this PC, connect your models, then choose what to build."
         ).pack(anchor="w", pady=(0, 12))
@@ -272,6 +274,16 @@ class SetupWizard:
             else:
                 self.notice.set("Click Prepare / check this PC to start. Keep Docker Desktop open.")
 
+    def open_pulse(self):
+        if self.busy:
+            return
+        if self.pulse_view is not None:
+            self.pulse_view.window.lift()
+            return
+        from pulse.view import PulseView
+
+        self.pulse_view = PulseView(self)
+
     def scrollable_tab(self, parent):
         outer = self.ttk.Frame(parent)
         canvas = self.tk.Canvas(outer, highlightthickness=0)
@@ -348,7 +360,10 @@ class SetupWizard:
         try:
             for _ in range(100):
                 kind, payload = self.events.get_nowait()
-                if kind == "line":
+                if kind == "pulse":
+                    view, event = payload
+                    view.event(event)
+                elif kind == "line":
                     self.append(payload)
                 else:
                     self.busy = False
@@ -847,6 +862,9 @@ class SetupWizard:
         )
 
     def cancel(self):
+        if self.operation_kind == "pulse" and self.pulse_view is not None:
+            self.pulse_view.cancel()
+            return
         if self.operation_kind == "update":
             self.update_cancel.set()
             self.notice.set("Cancelling the update download. Your current app stays installed...")
@@ -910,9 +928,23 @@ def main(argv=None):
         app = SetupWizard(window, auto_install=args.install, smoke=True)
         window.update_idletasks()
         window.update()
+        from pulse.view import PulseView
+
+        pulse = PulseView(app, auto_start=False)
+        window.update_idletasks()
+        pulse.close()
         window.after_cancel(app.poll_id)
         window.destroy()
-        print(json.dumps({"status": "ok", "gui_constructed": True, "model_requests": 0}))
+        print(
+            json.dumps(
+                {
+                    "status": "ok",
+                    "gui_constructed": True,
+                    "pulse_constructed": True,
+                    "model_requests": 0,
+                }
+            )
+        )
         return 0
     from app_lifecycle import LifecycleError, application_lock
 

@@ -1,3 +1,22 @@
+# AASS 1.4.0 — Pulse diagnostic laboratory
+
+One All Tests view runs eight versioned isolated benchmarks with real Docker
+acceptance checks, incremental metadata events, honest completion counts,
+cancellation, native Windows completion notification, review and sanitized ZIP
+export. Optional live worker/cloud checks require explicit run consent and share
+the unchanged hard budget. Fixtures never establish live model capability.
+
+Execution repairs use action-specific required schemas, field-level corrective
+feedback, preserved test failures and runnable-snapshot verification checkpoints.
+Repeated ineffective snapshots are intercepted, independent benchmark checks are
+protected, and test/review gates and installation/update security remain intact.
+No extra models, dependencies, runtime agents or automatic diagnostic uploads.
+
+Physical Windows 10 and live RTX 3050/Ollama/provider acceptance remain destination
+checks. Passing fixture benchmarks or Windows Server CI cannot establish those.
+
+---
+
 # AASS 1.3.2 — recover repeated worker rewrites
 
 A user trajectory showed six writes to calculator.py interleaved with four

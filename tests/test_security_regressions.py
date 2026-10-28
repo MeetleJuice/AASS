@@ -218,7 +218,7 @@ def test_packaged_release_is_deterministic_and_contains_no_nested_payloads(tmp_p
         archive.extractall(tmp_path)
     release = next(tmp_path.iterdir())
     manifest = verify(release)
-    assert manifest["version"] == "1.3.2"
+    assert manifest["version"] == "1.4.0"
     assert {
         "setup_api.py",
         "setup_controller.py",
@@ -230,6 +230,11 @@ def test_packaged_release_is_deterministic_and_contains_no_nested_payloads(tmp_p
         "desktop_integration.py",
         "assets/aass.ico",
         "assets/aass.svg",
+        "pulse/__init__.py",
+        "pulse/engine.py",
+        "pulse/events.py",
+        "pulse/view.py",
+        "pulse/manifest.json",
     } <= manifest["files"].keys()
     from scripts.package import ROOT
 
